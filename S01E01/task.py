@@ -4,15 +4,22 @@ import os
 import sys
 from dotenv import load_dotenv
 from string import Template
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 import csv
-from typing import Any, Iterator
+from typing import Any, Iterator, List, get_args
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.generic_helpers import get_filename_from_url
 
 from pathlib import Path
 import requests
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+
+from pydantic import BaseModel, Field
+from typing import Literal
+
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -22,6 +29,7 @@ TASK =  os.getenv('TASK')
 SOLUTION_URL =  os.getenv('SOLUTION_URL')
 SOURCE_URL =  os.getenv('SOURCE_URL')
 DATA_FOLDER =  os.getenv('DATA_FOLDER')
+TASK_NAME =  os.getenv('TASK_NAME')
 
 t = Template(SOURCE_URL)
 source_data_url = t.substitute(ai_devs_secret=AI_DEVS_SECRET)
@@ -31,10 +39,13 @@ DATA_FILTERS = {
     'birthPlace': lambda x: x.lower()=='grudziądz',
     'gender': lambda x: x.upper()=='M'
 }
-# name,surname,gender,birthDate,birthPlace,birthCountry,job
 
-TAGS = ['IT', 'transport', 'edukacja', 'medycyna', 
-        'praca z ludźmi', 'praca z pojazdami', 'praca fizyczna']
+TagType = Literal['IT', 'transport', 'edukacja', 'medycyna', 'praca z ludźmi', 'praca z pojazdami', 'praca fizyczna']
+TAGS: list[str] = list(get_args(TagType))
+
+class JobTagClassifier(BaseModel):
+    """Classify matching job tags based on job description (multiple tags possible)."""
+    tags: List[TagType] = Field(..., description="List of tags related to job descibed in attached text fragment.")
 
 
 REF_DATE = '2026-03-09'
@@ -82,5 +93,26 @@ if __name__ == '__main__':
         with open(data_file, 'wb') as f:
             f.write(r.content)
 
-    results = list(filter_data(read_csv_data(data_file), DATA_FILTERS))
+    filtered_list = list(filter_data(read_csv_data(data_file), DATA_FILTERS))
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+    structured_llm = llm.with_structured_output(JobTagClassifier)
+
+    prompt = ChatPromptTemplate.from_template(
+        "You are job classification expert. Please assign tags to the job description fragment.\n"
+        "Available tags: {tags}\n"
+        "Fragment: {input}\n"
+        "Return only the matching tags."
+    )
+
+    chain = prompt | structured_llm
+
+    fragment = filtered_list[0]['job']  # e.g., "Software developer specializing in backend systems."
+
+    result = chain.invoke({"tags": ", ".join(TAGS), "input": fragment})
+    
+    # print(result.tags)  # e.g., ['IT']
+
     s =1
+
+    # name,surname,gender,birthDate,birthPlace,birthCountry,job
