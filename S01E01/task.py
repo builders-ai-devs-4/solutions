@@ -107,12 +107,25 @@ if __name__ == '__main__':
 
     chain = prompt | structured_llm
 
-    fragment = filtered_list[0]['job']  # e.g., "Software developer specializing in backend systems."
+    renamed_elements = [ {'name': elem['name'], 'surname': elem['surname'],'gender': elem['gender'], 'born': date.fromisoformat(elem['birthDate']).year, 'city': elem['birthPlace'],'job': elem['job']} for elem in [f.copy() for f in filtered_list]]
 
-    result = chain.invoke({"tags": ", ".join(TAGS), "input": fragment})
-    
-    # print(result.tags)  # e.g., ['IT']
+    for elem in renamed_elements:
+        elem['tags'] = chain.invoke({"tags": ", ".join(TAGS), "input": elem['job']}).tags
 
-    s =1
+    answers = [elem for elem in renamed_elements if 'transport' in elem['tags']]
 
-    # name,surname,gender,birthDate,birthPlace,birthCountry,job
+    ans = dict()
+    ans["task"] = TASK_NAME
+    ans["apikey"] = AI_DEVS_SECRET
+    ans["answer"] = [{'name': elem['name'], 'surname': elem['surname'],'gender': elem['gender'], 'born': elem['born'], 'city': elem['city'], 'tags': elem['tags']} for elem in answers]
+
+    response = requests.post(SOLUTION_URL, json=ans)
+
+    print(response.url)
+    print(str(response.content))
+
+    answer_file = parent_folder / DATA_FOLDER / 'answer.txt'
+
+    with open(answer_file, 'wb') as f:
+        f.write(response.content)
+
