@@ -207,7 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # AI_DEVS task request
-request.md
+**/request.md
 
 # Data files
-.data/
+**/.data/
