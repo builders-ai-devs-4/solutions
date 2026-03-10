@@ -21,7 +21,7 @@ DATA_FOLDER = os.getenv('DATA_FOLDER')
 _SUSPECTS_FILE = Path(__file__).parent / DATA_FOLDER / 'suspects.json'
 _POWER_PLANTS_FILE = Path(__file__).parent / DATA_FOLDER / 'findhim_locations.json'
 _CITIES_COORDINATES_FILE = Path(__file__).parent / DATA_FOLDER / 'cities_with_coordinates.json'
-ACCESS_LEVEL_POST_URL = os.getenv('ACCESS_LEVEL_POST_URL')
+ACCESS_LEVEL_POST_URL = os.getenv('POST_URL1')
 LOCATION_POST_URL = os.getenv('POST_URL2')    
 
 TagType = Literal['IT', 'transport', 'edukacja', 'medycyna', 'praca z ludźmi', 'praca z pojazdami', 'praca fizyczna']
