@@ -17,7 +17,7 @@ import requests
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langgraph.prebuilt import create_react_agent
 
 from pydantic import BaseModel, Field
 from typing import Literal
@@ -165,27 +165,20 @@ if __name__ == '__main__':
             get_power_plants, get_cities_coordinates]
 
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
-    llm_with_tools = llm.bind_tools(tools)
 
-    prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    ("user", user_prompt),
-    ("placeholder", "{agent_scratchpad}")
-    ])
-
-    agent = create_tool_calling_agent(llm, tools, prompt)
-
-    executor = AgentExecutor(
-        agent=agent,
+    agent = create_react_agent(
+        model=llm,
         tools=tools,
-        callbacks=[LoggerCallbackHandler(logger)],
-        verbose=False,
-        max_iterations=MAX_AGENT_STEPS,  
-        early_stopping_method="generate", 
-                              
+        prompt=system_prompt,
     )
-    
-    result = executor.invoke({})
+
+    config = {"configurable": {"thread_id": "1"}, "callbacks": [LoggerCallbackHandler(logger)]}
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        config=config,
+    )
+    final_message = result["messages"][-1].content
+    logger.info(f"Agent result: {final_message}")
     
     x = 1
 
