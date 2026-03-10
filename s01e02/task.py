@@ -151,31 +151,32 @@ if __name__ == '__main__':
 
     with open(suspects_file, 'r', encoding='utf-8') as f:
         suspects = json.load(f)
+
     suspects = [{**elem, 'birthYear': elem['born']} for elem in suspects]
 
-    # TOOL
-    LOCATION_KEYS = {'name', 'surname'}
-    location_dict = {k: v for k, v in suspects[3].items() if k in LOCATION_KEYS}
-    location_dict["apikey"] = AI_DEVS_SECRET
+    # # TOOL
+    # LOCATION_KEYS = {'name', 'surname'}
+    # location_dict = {k: v for k, v in suspects[3].items() if k in LOCATION_KEYS}
+    # location_dict["apikey"] = AI_DEVS_SECRET
 
-    response = requests.post(LOCATION_POST_URL, json=location_dict)
+    # response = requests.post(LOCATION_POST_URL, json=location_dict)
 
    
     # ACCESS_LEVEL_POST_URL
-    print(response.url)
-    print(' ')
-    print(suspects[3].__str__())
-    print(' ')
-    print(str(response.content))
+    # print(response.url)
+    # print(' ')
+    # print(suspects[3].__str__())
+    # print(' ')
+    # print(str(response.content))
 
     # TOOL
-    ACCESS_LEVEL_KEYS = {'name', 'surname', 'birthYear'}   
-    access_dict = {k: v for k, v in suspects[3].items() if k in ACCESS_LEVEL_KEYS}
-    access_dict["apikey"] = AI_DEVS_SECRET
-    response = requests.post(ACCESS_LEVEL_POST_URL, json=access_dict)
+    # ACCESS_LEVEL_KEYS = {'name', 'surname', 'birthYear'}   
+    # access_dict = {k: v for k, v in suspects[3].items() if k in ACCESS_LEVEL_KEYS}
+    # access_dict["apikey"] = AI_DEVS_SECRET
+    # response = requests.post(ACCESS_LEVEL_POST_URL, json=access_dict)
 
-    print(' ')
-    print(str(response.content))
+    # print(' ')
+    # print(str(response.content))
     
     x = 1
 
