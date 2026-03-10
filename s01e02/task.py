@@ -178,7 +178,6 @@ if __name__ == '__main__':
     executor = AgentExecutor(
         agent=agent,
         tools=tools,
-        verbose=True,
         callbacks=[LoggerCallbackHandler(logger)],
         verbose=False,
         max_iterations=MAX_AGENT_STEPS,  
