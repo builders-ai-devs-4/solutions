@@ -95,6 +95,9 @@ def filter_data(
         ):
             yield row
 
+PROMPTS_DIR = parent_folder / "prompts"
+system_prompt = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
+user_prompt = (PROMPTS_DIR / "user.md").read_text(encoding="utf-8")
 
 if __name__ == '__main__':
     
@@ -157,14 +160,16 @@ if __name__ == '__main__':
         with open(suspects_file, 'w', encoding='utf-8') as f:
             json.dump(suspects, f)
 
-    tools = [haversine, obtain_suspects_locations, obtain_suspects_access_level, get_suspects_count, get_suspect_by_index]
+    tools = [haversine, obtain_suspects_locations, obtain_suspects_access_level, 
+            get_suspects_count, get_suspect_by_index,
+            get_power_plants, get_cities_coordinates]
 
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
 
     prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an investigator. Use the available tools to analyze suspects and their locations."),
-    ("user", "{input}"),
+    ("system", system_prompt),
+    ("user", user_prompt),
     ("placeholder", "{agent_scratchpad}")
     ])
 
@@ -181,36 +186,7 @@ if __name__ == '__main__':
                               
     )
     
-    result = executor.invoke({"input": "Check access level for each suspect and find who has the highest one."})
-
-    # with open(suspects_file, 'r', encoding='utf-8') as f:
-    #     suspects = json.load(f)
-
-    # suspects = [{**elem, 'birthYear': elem['born']} for elem in suspects]
-
-    # # TOOL
-    # LOCATION_KEYS = {'name', 'surname'}
-    # location_dict = {k: v for k, v in suspects[3].items() if k in LOCATION_KEYS}
-    # location_dict["apikey"] = AI_DEVS_SECRET
-
-    # response = requests.post(LOCATION_POST_URL, json=location_dict)
-
-   
-    # ACCESS_LEVEL_POST_URL
-    # print(response.url)
-    # print(' ')
-    # print(suspects[3].__str__())
-    # print(' ')
-    # print(str(response.content))
-
-    # TOOL
-    # ACCESS_LEVEL_KEYS = {'name', 'surname', 'birthYear'}   
-    # access_dict = {k: v for k, v in suspects[3].items() if k in ACCESS_LEVEL_KEYS}
-    # access_dict["apikey"] = AI_DEVS_SECRET
-    # response = requests.post(ACCESS_LEVEL_POST_URL, json=access_dict)
-
-    # print(' ')
-    # print(str(response.content))
+    result = executor.invoke({})
     
     x = 1
 

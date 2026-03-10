@@ -19,6 +19,8 @@ AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
 LOCATION_POST_URL = os.getenv('LOCATION_POST_URL')
 DATA_FOLDER = os.getenv('DATA_FOLDER')
 _SUSPECTS_FILE = Path(__file__).parent / DATA_FOLDER / 'suspects.json'
+_POWER_PLANTS_FILE = Path(__file__).parent / DATA_FOLDER / 'findhim_locations.json'
+_CITIES_COORDINATES_FILE = Path(__file__).parent / DATA_FOLDER / 'cities_with_coordinates.json'
 ACCESS_LEVEL_POST_URL = os.getenv('ACCESS_LEVEL_POST_URL')
 
 TagType = Literal['IT', 'transport', 'edukacja', 'medycyna', 'praca z ludźmi', 'praca z pojazdami', 'praca fizyczna']
@@ -88,6 +90,26 @@ def get_suspect_by_index(index: int, fields: list[str] | None = None) -> dict:
     if fields:
         return {k: v for k, v in suspect.items() if k in fields}
     return suspect
+
+
+@tool
+def get_power_plants() -> list[dict]:
+    """Return the list of nuclear power plants with their city name, active status and power output.
+    Each entry contains: city (str), is_active (bool), power (str), code (str)."""
+    data = json.loads(_POWER_PLANTS_FILE.read_text(encoding='utf-8'))
+    return [{'city': city, **info} for city, info in data['power_plants'].items()]
+
+
+@tool
+def get_cities_coordinates() -> list[dict]:
+    """Return the list of cities with their geographic coordinates (latitude, longitude).
+    Each entry contains: city (str), latitude (float), longitude (float)."""
+    data = json.loads(_CITIES_COORDINATES_FILE.read_text(encoding='utf-8'))
+    result = []
+    for entry in data:
+        for city, coords in entry.items():
+            result.append({'city': city, 'latitude': coords['latitude'], 'longitude': coords['longitude']})
+    return result
 
 
 def get_coordinates(city: str) -> Coordinates:
