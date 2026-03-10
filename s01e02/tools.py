@@ -1,4 +1,5 @@
 
+import logging
 import math
 import json
 from pathlib import Path
@@ -9,6 +10,7 @@ from langchain_core.tools import tool
 from pydantic import ConfigDict, Field, BaseModel
 from dotenv import load_dotenv
 import os
+from langchain_core.callbacks import BaseCallbackHandler
 
 import requests
 
@@ -103,3 +105,22 @@ def get_coordinates(city: str) -> Coordinates:
     return geocode_chain.invoke({"city": city})
 
   # "gpt-5-mini"
+
+class LoggerCallbackHandler(BaseCallbackHandler):
+    def __init__(self, logger: logging.Logger):
+        self.log = logger
+
+    def on_tool_start(self, serialized, input_str, **kwargs):
+        self.log.info(f"Tool call: {serialized['name']} | input: {input_str}")
+
+    def on_tool_end(self, output, **kwargs):
+        self.log.debug(f"Tool result: {output}")
+
+    def on_tool_error(self, error, **kwargs):
+        self.log.warning(f"Tool error: {error}")
+
+    def on_agent_action(self, action, **kwargs):
+        self.log.info(f"Agent action: {action.tool} | {action.tool_input}")
+
+    def on_agent_finish(self, finish, **kwargs):
+        self.log.info(f"Agent finished: {finish.return_values}")
