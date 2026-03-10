@@ -17,9 +17,11 @@ import requests
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import create_tool_calling_agent, AgentExecutor
 
-# from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field
 from typing import Literal
+
 import json
 from tools import *
 
@@ -40,6 +42,7 @@ ACCESS_LEVEL_POST_URL = os.getenv('POST_URL1')
 LOCATION_POST_URL = os.getenv('POST_URL2')    
 
 REWRITE_SUSPECTS = False
+MAX_AGENT_STEPS = 10
 
 current_folder = Path(__file__)
 parent_folder = current_folder.parent
@@ -158,6 +161,27 @@ if __name__ == '__main__':
 
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
+
+    prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an investigator. Use the available tools to analyze suspects and their locations."),
+    ("user", "{input}"),
+    ("placeholder", "{agent_scratchpad}")
+    ])
+
+    agent = create_tool_calling_agent(llm, tools, prompt)
+
+    executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        callbacks=[LoggerCallbackHandler(logger)],
+        verbose=False,
+        max_iterations=MAX_AGENT_STEPS,  
+        early_stopping_method="generate", 
+                              
+    )
+    
+    result = executor.invoke({"input": "Check access level for each suspect and find who has the highest one."})
 
     # with open(suspects_file, 'r', encoding='utf-8') as f:
     #     suspects = json.load(f)
