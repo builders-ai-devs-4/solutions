@@ -10,6 +10,7 @@ from typing import Any, Iterator, List, get_args
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.generic_helpers import get_filename_from_url
+from libs.logger import get_logger
 
 from pathlib import Path
 import requests
@@ -40,6 +41,12 @@ LOCATION_POST_URL = os.getenv('POST_URL2')
 
 REWRITE_SUSPECTS = False
 
+current_folder = Path(__file__)
+parent_folder = current_folder.parent
+
+logger = get_logger(TASK, log_dir=parent_folder / DATA_FOLDER/ "logs")
+
+
 people_template = Template(PEOPLE_URL)
 people_data_url = people_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 
@@ -55,8 +62,6 @@ DATA_FILTERS = {
 
 REF_DATE = '2026-03-09'
 
-current_folder = Path(__file__)
-parent_folder = current_folder.parent
 
 FIXED_DATE = date.fromisoformat(REF_DATE) 
 
@@ -149,10 +154,15 @@ if __name__ == '__main__':
         with open(suspects_file, 'w', encoding='utf-8') as f:
             json.dump(suspects, f)
 
-    with open(suspects_file, 'r', encoding='utf-8') as f:
-        suspects = json.load(f)
+    tools = [haversine, obtain_suspects_locations, obtain_suspects_access_level, get_suspects_count, get_suspect_by_index]
 
-    suspects = [{**elem, 'birthYear': elem['born']} for elem in suspects]
+    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm_with_tools = llm.bind_tools(tools)
+
+    # with open(suspects_file, 'r', encoding='utf-8') as f:
+    #     suspects = json.load(f)
+
+    # suspects = [{**elem, 'birthYear': elem['born']} for elem in suspects]
 
     # # TOOL
     # LOCATION_KEYS = {'name', 'surname'}
