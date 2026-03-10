@@ -28,6 +28,15 @@ from tools import *
 
 import math
 
+
+class InvestigationResult(BaseModel):
+    """Final investigation result identifying the suspect near a nuclear power plant."""
+    name: str = Field(..., description="First name of the suspect.")
+    surname: str = Field(..., description="Surname of the suspect.")
+    accessLevel: int = Field(..., description="Access level retrieved from the API.")
+    powerPlant: str = Field(..., description="Power plant code in format PWR0000PL.")
+
+
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AI_DEVS_SECRET =  os.getenv('AI_DEVS_SECRET')
@@ -42,7 +51,7 @@ ACCESS_LEVEL_POST_URL = os.getenv('POST_URL1')
 LOCATION_POST_URL = os.getenv('POST_URL2')    
 
 REWRITE_SUSPECTS = False
-MAX_AGENT_STEPS = 10
+MAX_AGENT_STEPS = 100
 
 current_folder = Path(__file__)
 parent_folder = current_folder.parent
@@ -136,7 +145,7 @@ if __name__ == '__main__':
                 f.write(r.content)
 
         filtered_list = list(filter_data(read_csv_data(data_file), DATA_FILTERS))
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
         structured_llm = llm.with_structured_output(JobTagClassifier)
 
@@ -164,7 +173,7 @@ if __name__ == '__main__':
             get_suspects_count, get_suspect_by_index,
             get_power_plants, get_cities_coordinates]
 
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = ChatOpenAI(model="gpt-5-mini", temperature=0, max_retries=6)
 
     agent = create_react_agent(
         model=llm,
@@ -172,30 +181,43 @@ if __name__ == '__main__':
         prompt=system_prompt,
     )
 
-    config = {"configurable": {"thread_id": "1"}, "callbacks": [LoggerCallbackHandler(logger)]}
+    config = {"configurable": {"thread_id": "1"}, "recursion_limit": MAX_AGENT_STEPS, "callbacks": [LoggerCallbackHandler(logger)]}
     result = agent.invoke(
         {"messages": [{"role": "user", "content": user_prompt}]},
         config=config,
     )
     final_message = result["messages"][-1].content
     logger.info(f"Agent result: {final_message}")
+
+    if "need more steps" in final_message.lower():
+        raise RuntimeError(f"Agent ran out of steps (recursion_limit={MAX_AGENT_STEPS}). Increase MAX_AGENT_STEPS.")
+
+    structured_llm = ChatOpenAI(model="gpt-5-mini", temperature=0).with_structured_output(InvestigationResult)
+    investigation_result: InvestigationResult = structured_llm.invoke(
+        f"Extract the investigation findings from this agent report:\n{final_message}"
+    )
+    logger.info(f"Structured result: {investigation_result}")
+
+    ans = {
+        "apikey": AI_DEVS_SECRET,
+        "task": TASK_NAME,
+        "answer": {
+            "name": investigation_result.name,
+            "surname": investigation_result.surname,
+            "accessLevel": investigation_result.accessLevel,
+            "powerPlant": investigation_result.powerPlant,
+        }
+    }
+    logger.info(f"Sending answer: {ans}")
+    response = requests.post(SOLUTION_URL, json=ans)
+    logger.info(f"Response status: {response.status_code}")
+    logger.info(f"Response body: {response.text}")
+    print(response.text)
     
-    x = 1
+    answer_file = parent_folder / DATA_FOLDER / 'answer.txt'
 
-    # ans["answer"] = [{'name': elem['name'], 'surname': elem['surname'],'gender': elem['gender'], 'born': elem['born'], 'city': elem['city'], 'tags': elem['tags']} for elem in answers]
-
-    # response = requests.post(SOLUTION_URL, json=ans)
-
-    # print(response.url)
-    # print(str(response.content))
-
-    # answer_file = parent_folder / DATA_FOLDER / 'answer.txt'
-
-    # with open(answer_file, 'wb') as f:
-    #     f.write(response.content)
-
-    # openai_answer = completion.choices[0].message.content
-    # ans_json = json.loads(openai_answer)
+    with open(answer_file, 'wb') as f:
+        f.write(response.content)
 
 
 

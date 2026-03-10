@@ -21,6 +21,8 @@ def get_logger(
     )
 
     stream_handler = logging.StreamHandler(sys.stdout)
+    if hasattr(stream_handler.stream, 'reconfigure'):
+        stream_handler.stream.reconfigure(errors='replace')
     stream_handler.setLevel(console_level)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
