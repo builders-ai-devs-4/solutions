@@ -1,6 +1,6 @@
 from pathlib import Path
 from langchain_core.tools import tool
-from ..models.api_models import CheckPackageRequest, RedirectPackageResponse
+from models.api_models import CheckPackageRequest, RedirectPackageResponse
 import os
 import requests
 
@@ -18,5 +18,5 @@ def check_package(packageid: str):
 
 @tool
 def redirect_package(packageid: str, destination: str, code: str):
-    # ... przekieruj paczkę ...
+    """Redirect a package to a new destination with a given code."""
     return True

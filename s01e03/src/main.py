@@ -1,17 +1,18 @@
 import sys, os
-from fastapi import FastAPI, Path
-from task import agent
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../libs"))
-from libs.logger import get_logger
-from models.api_models import OperatorsRequest, ResponseToOperator
+from fastapi import FastAPI
+from pathlib import Path
 
 from dotenv import load_dotenv
 parent_folder_path = Path(__file__).parent.parent
-
 load_dotenv(parent_folder_path / ".env") 
-
+sys.path.insert(0, str(parent_folder_path.parent)) 
+sys.path.insert(0, str(Path(__file__).parent)) 
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../libs"))
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
+
+from libs.logger import get_logger
+from models.api_models import OperatorsRequest, ResponseToOperator
+from task.agent import run_agent
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AI_DEVS_SECRET =  os.getenv('AI_DEVS_SECRET')
@@ -33,5 +34,5 @@ async def health_check():
 
 @app.post("/", response_model=ResponseToOperator)
 async def root_post(req: OperatorsRequest):
-    answer = await agent.run_agent(req.sessionID, req.msg)
+    answer = await run_agent(req.sessionID, req.msg)
     return ResponseToOperator(msg=answer)
