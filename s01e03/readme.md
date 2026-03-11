@@ -12,6 +12,7 @@ pip install "uvicorn[standard]"
 
 ```bash
 pip install -r requirements.tx
+pip install -r requirements-dev.txt
 ```
 
 ## Start app
