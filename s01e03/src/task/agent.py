@@ -12,7 +12,7 @@ memory = InMemorySaver()
 PARENT_FOLDER_PATH = Path(os.getenv("PARENT_FOLDER_PATH"))
 
 agent = create_agent(
-    model="openai:gpt-4o-mini",
+    model="openai:gpt-5-mini",
     tools=[check_package, redirect_package],
     system_prompt="Jesteś asystentem operatora paczek.",
     checkpointer=memory,

@@ -12,7 +12,7 @@ class CheckPackageRequest(BaseModel):
     action: str = "check"
     packageid: str
 
-class RedirectPackageResponse(BaseModel):
+class RedirectPackageRequest(BaseModel):
     apikey: str
     action: str = "redirect"
     packageid: str

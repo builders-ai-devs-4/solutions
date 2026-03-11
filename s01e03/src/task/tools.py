@@ -1,6 +1,6 @@
 from pathlib import Path
 from langchain_core.tools import tool
-from models.api_models import CheckPackageRequest, RedirectPackageResponse
+from models.api_models import CheckPackageRequest, RedirectPackageRequest
 import os
 import requests
 
@@ -10,13 +10,21 @@ PARENT_FOLDER_PATH = Path(os.getenv("PARENT_FOLDER_PATH"))
 PACKAGES_URL = os.getenv('POST_URL1')
 
 @tool
-def check_package(packageid: str):
-    """Check the status of a package by its ID."""
+def check_package(packageid: str) -> dict:
+    """Check the status and location of a package by its ID."""
     payload = CheckPackageRequest(apikey=AI_DEVS_SECRET, packageid=packageid)
     response = requests.post(PACKAGES_URL, json=payload.model_dump())
     return response.json()
 
 @tool
-def redirect_package(packageid: str, destination: str, code: str):
-    """Redirect a package to a new destination with a given code."""
-    return True
+def redirect_package(packageid: str, destination: str, code: str) -> dict:
+    """Redirect a package to a new destination using a security code provided by the operator.
+    Returns a confirmation code that must be passed back to the operator."""
+    payload = RedirectPackageRequest(
+        apikey=AI_DEVS_SECRET,
+        packageid=packageid,
+        destination=destination,
+        code=code,
+    )
+    response = requests.post(PACKAGES_URL, json=payload.model_dump())
+    return response.json()
