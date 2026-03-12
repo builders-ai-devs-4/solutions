@@ -19,7 +19,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 # DATA_FOLDER_PATH must be set before log-related imports,
 # because loggers use it to determine log file location
-_data_folder = _project_root / os.getenv("DATA_FOLDER", ".data")
+_data_folder = _project_root / os.getenv("DATA_FOLDER")
 os.environ.setdefault("DATA_FOLDER_PATH",   str(_data_folder))
 os.environ.setdefault("PARENT_FOLDER_PATH", str(_project_root))
 

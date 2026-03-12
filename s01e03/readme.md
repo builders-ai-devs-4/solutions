@@ -9,7 +9,7 @@ pip install "uvicorn[standard]"
 pip install pytest pytest-asyncio httpx
 ```
 
-## Activate on linux
+## Activate venv on linux
 
 ```bash
 chmod +x venv/bin/activate
@@ -67,4 +67,16 @@ python scripts/test.py -- -x --tb=short
 
 # Show help
 python scripts/test.py -h
+
+# Terminal report
+python scripts/test.py -- --cov=src
+
+# Terminal report with uncovered lines
+python scripts/test.py -- --cov=src --cov-report=term-missing
+
+# HTML report (most readable, opens in browser)
+python scripts/test.py -- --cov=src --cov-report=html
+
+# Both at once
+python scripts/test.py -- --cov=src --cov-report=term-missing --cov-report=html
 ```
