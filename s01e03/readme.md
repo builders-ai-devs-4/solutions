@@ -22,3 +22,20 @@ pip install -r requirements-dev.txt
 uvicorn src.main:app --reload
 ```
 
+## Bootstraps
+
+``` bash
+# Development environment
+bash start.sh
+bash start.sh --reload
+# Production environment
+APP_ENV=production bash start.sh
+```
+
+```powershell
+# Development environment
+.\start.ps1
+.\start.ps1 -Reload
+# Production environment
+$env:APP_ENV="production"; .\start.ps1
+```
