@@ -10,9 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
 
-from models.api_models import OperatorsRequest, ResponseToOperator
-from task.agent import run_agent
-
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AI_DEVS_SECRET =  os.getenv('AI_DEVS_SECRET')
 HUB_URL =  os.getenv('HUB_URL')

@@ -39,3 +39,25 @@ APP_ENV=production bash start.sh
 # Production environment
 $env:APP_ENV="production"; .\start.ps1
 ```
+
+## Tests run
+
+```bash
+# Start the server (in a separate terminal)
+python scripts/start.py --reload
+
+# Run all tests
+python scripts/test.py
+
+# Run a specific test
+python scripts/test.py -- -k test_health_check
+
+# Stop on first failure
+python scripts/test.py -- -x
+
+# Stop on first failure with short traceback
+python scripts/test.py -- -x --tb=short
+
+# Show help
+python scripts/test.py -h
+```

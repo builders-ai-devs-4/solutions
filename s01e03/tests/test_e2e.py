@@ -42,11 +42,11 @@ def test_conversation_memory(chat, logger):
 def test_separate_sessions_are_independent(chat, logger):
     logger.info("TEST: session isolation")
 
-    chat("e2e-session-A", "My package ID is PKG-AAAA-1111.")
+    chat("e2e-session-A", "My package ID is PKG00001111.")
     data_b = chat("e2e-session-B", "What package ID did I give you?")
 
     logger.info(f"Session B response: {data_b['msg']!r}")
-    assert "PKG-AAAA-1111" not in data_b["msg"], (
+    assert "PKG00001111" not in data_b["msg"], (
         f"Session B leaked data from session A. Response: {data_b['msg']!r}"
     )
     logger.info("PASS: session isolation")
