@@ -6,6 +6,7 @@ python.exe -m pip install --upgrade pip
 pip install -U langchain langchain-openai pydantic langgraph
 pip install fastapi
 pip install "uvicorn[standard]"
+pip install pytest pytest-asyncio httpx
 ```
 
 ## Install deps from requirements
