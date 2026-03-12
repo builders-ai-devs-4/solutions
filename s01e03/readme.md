@@ -2,17 +2,24 @@
 
 ```bash
 python -m venv venv
-python.exe -m pip install --upgrade pip
+python -m pip install --upgrade pip
 pip install -U langchain langchain-openai pydantic langgraph
 pip install fastapi
 pip install "uvicorn[standard]"
 pip install pytest pytest-asyncio httpx
 ```
 
+## Activate on linux
+
+```bash
+chmod +x venv/bin/activate
+source venv/bin/activate
+```
+
 ## Install deps from requirements
 
 ```bash
-pip install -r requirements.tx
+pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 

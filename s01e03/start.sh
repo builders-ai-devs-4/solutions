@@ -1,61 +1,56 @@
-param(
-    [switch]$Reload,
-    [switch]$Help
-)
+#!/usr/bin/env bash
+set -euo pipefail
 
-$ProjectRoot = $PSScriptRoot
+APP_ENV="${APP_ENV:-development}"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-$usage = @"
-Usage: .\start.ps1 [options]
+usage() {
+  cat <<EOF
+Usage: bash start.sh [options]
 
 Options:
-  -Help             Show this help message and exit
-  -Reload           Enable auto-reload (development only)
+  -h, --help        Show this help message and exit
+  --reload          Enable auto-reload (development only)
 
 Environment:
-  Set APP_ENV before running to select config file:
-    development  (default)
-    test
-    production
+  APP_ENV=development   (default)
+  APP_ENV=test
+  APP_ENV=production
 
 Examples:
-  .\start.ps1
-  .\start.ps1 -Reload
-  `$env:APP_ENV="production"; .\start.ps1
-"@
-
-if ($Help) {
-    Write-Host $usage
-    exit 0
+  bash start.sh
+  bash start.sh --reload
+  APP_ENV=production bash start.sh
+EOF
 }
 
-$AppEnv = if ($env:APP_ENV) { $env:APP_ENV } else { "development" }
+RELOAD=""
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+    --reload)  RELOAD="--reload" ;;
+    *) echo "Error: unknown option: $arg"; echo; usage; exit 1 ;;
+  esac
+done
 
-$EnvFile = Join-Path $ProjectRoot ".env.$AppEnv"
-if (-not (Test-Path $EnvFile)) {
-    Write-Error "Error: env file not found: $EnvFile"
-    exit 1
-}
+ENV_FILE="$PROJECT_ROOT/.env.${APP_ENV}"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Error: env file not found: $ENV_FILE"
+  exit 1
+fi
 
-foreach ($file in @($EnvFile, (Join-Path $ProjectRoot ".env"))) {
-    if (Test-Path $file) {
-        Get-Content $file | ForEach-Object {
-            if ($_ -match '^\s*([^#][^=]+)=(.*)$') {
-                [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
-            }
-        }
-    }
-}
+set -a
+# Strip \r (CRLF → LF) to handle env files created on Windows
+source <(sed 's/\r//' "$ENV_FILE")
+[ -f "$PROJECT_ROOT/.env" ] && source <(sed 's/\r//' "$PROJECT_ROOT/.env")
+set +a
 
-$Host_  = if ($env:APP_HOST) { $env:APP_HOST } else { "localhost" }
-$Port   = if ($env:APP_PORT) { $env:APP_PORT } else { "8000" }
+HOST="${APP_HOST:-localhost}"
+PORT="${APP_PORT:-8000}"
 
-$cmd = "python -m uvicorn src.main:app --host $Host_ --port $Port"
-if ($Reload) { $cmd += " --reload" }
+echo "APP_ENV=$APP_ENV"
+echo "Running: uvicorn src.main:app --host $HOST --port $PORT $RELOAD"
+echo
 
-Write-Host "APP_ENV=$AppEnv"
-Write-Host "Running: $cmd"
-Write-Host ""
-
-Set-Location $ProjectRoot
-Invoke-Expression $cmd
+cd "$PROJECT_ROOT"
+exec python -m uvicorn src.main:app --host "$HOST" --port "$PORT" $RELOAD
