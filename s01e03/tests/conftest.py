@@ -5,38 +5,46 @@ import pytest
 from pathlib import Path
 from dotenv import load_dotenv
 
-_src  = Path(__file__).parent.parent / "src"
-_solutions = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_solutions))  # solutions/ → libs.*
-sys.path.insert(0, str(_src))        # src/ → models.*, task.*
+_project_root = Path(__file__).parent.parent
+_solutions    = _project_root.parent
 
+sys.path.insert(0, str(_solutions))           # solutions/ → libs.*
+sys.path.insert(0, str(_project_root / "src")) # src/ → models.*, task.*
+    
+# Read development env if APP_ENV is not set
+APP_ENV = os.getenv("APP_ENV", "development")
+load_dotenv(_project_root / f".env.{APP_ENV}", override=False)
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-# DATA_FOLDER_PATHmust be ste befor log related imports, because loggers use it to determine log file location
-from dotenv import dotenv_values
-_env = dotenv_values(Path(__file__).parent.parent / ".env")
-_data_folder = Path(__file__).parent.parent / _env.get("DATA_FOLDER", ".data")
-os.environ.setdefault("DATA_FOLDER_PATH", str(_data_folder))
-os.environ.setdefault("PARENT_FOLDER_PATH", str(Path(__file__).parent.parent))
+
+# DATA_FOLDER_PATH must be set before log-related imports,
+# because loggers use it to determine log file location
+_data_folder = _project_root / os.getenv("DATA_FOLDER", ".data")
+os.environ.setdefault("DATA_FOLDER_PATH",   str(_data_folder))
+os.environ.setdefault("PARENT_FOLDER_PATH", str(_project_root))
 
 from libs.logger import get_logger
 
-_log_dir = Path(os.environ["DATA_FOLDER_PATH"]) / "logs"
-log = get_logger("e2e", log_dir=_log_dir, log_stem="e2e_tests")
+_log_dir = _data_folder / "logs"
+_log = get_logger("e2e", log_dir=_log_dir, log_stem="e2e_tests")
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://{}:{}".format(
+    os.getenv("APP_HOST", "localhost"),
+    os.getenv("APP_PORT", "8000"),
+)
 
 
 @pytest.fixture(scope="session")
 def logger():
-    """Fixture: logger available on every test"""
-    return log
+    """Fixture: logger available in every test."""
+    return _log  # było: log
+
 
 @pytest.fixture(scope="session")
 def chat():
-    """Fixture: helper for POST requests"""
+    """Fixture: helper for POST requests."""
     def _post(session_id: str, msg: str) -> dict:
-        log.debug(f"[{session_id}] → {msg!r}")
+        _log.debug(f"[{session_id}] → {msg!r}")  # było: log
         r = requests.post(
             BASE_URL,
             json={"sessionID": session_id, "msg": msg},
@@ -44,6 +52,6 @@ def chat():
         )
         r.raise_for_status()
         data = r.json()
-        log.debug(f"[{session_id}] ← {data['msg']!r}")
+        _log.debug(f"[{session_id}] ← {data['msg']!r}")  # było: log
         return data
     return _post
