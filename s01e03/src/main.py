@@ -7,10 +7,9 @@ parent_folder_path = Path(__file__).parent.parent
 load_dotenv(parent_folder_path / ".env") 
 sys.path.insert(0, str(parent_folder_path.parent)) 
 sys.path.insert(0, str(Path(__file__).parent)) 
-# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../libs"))
+
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
 
-from libs.logger import get_logger
 from models.api_models import OperatorsRequest, ResponseToOperator
 from task.agent import run_agent
 
@@ -22,9 +21,13 @@ SOLUTION_URL =  os.getenv('SOLUTION_URL')
 DATA_FOLDER =  os.getenv('DATA_FOLDER')
 TASK_NAME =  os.getenv('TASK_NAME')
 PACKAGES_URL = os.getenv('POST_URL1')
-data_folder_path = parent_folder_path / DATA_FOLDER
 
+data_folder_path = parent_folder_path / DATA_FOLDER
 os.environ["DATA_FOLDER_PATH"] = str(data_folder_path)
+
+from models.api_models import OperatorsRequest, ResponseToOperator
+from task.agent import run_agent
+from task.loggers import api_logger
 
 app = FastAPI()
 
@@ -34,5 +37,7 @@ async def health_check():
 
 @app.post("/", response_model=ResponseToOperator)
 async def root_post(req: OperatorsRequest):
+    api_logger.info(f"POST / | session={req.sessionID} | msg={req.msg!r}")
     answer = await run_agent(req.sessionID, req.msg)
+    api_logger.debug(f"POST / | session={req.sessionID} | response={answer!r}")
     return ResponseToOperator(msg=answer)

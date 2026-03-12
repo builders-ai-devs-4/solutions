@@ -1,8 +1,10 @@
+import logging
 from pathlib import Path
 from langchain_core.tools import tool
 from models.api_models import CheckPackageRequest, RedirectPackageRequest
 import os
 import requests
+from langchain_core.callbacks import BaseCallbackHandler
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
