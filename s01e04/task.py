@@ -11,7 +11,11 @@ from pathlib import Path
 import requests
 import json
 
+current_folder = Path(__file__)
+parent_folder_path = current_folder.parent
+os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
 load_dotenv()
+
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AI_DEVS_SECRET =  os.getenv('AI_DEVS_SECRET')
@@ -22,15 +26,13 @@ INDEX_MD_URL =  os.getenv('SOURCE_URL1')
 DATA_FOLDER =  os.getenv('DATA_FOLDER')
 TASK_NAME =  os.getenv('TASK_NAME')
 
+
+task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
+os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
+
 import json
 from agents import asset_collector_agent, agent_logger, _RECURSION_LIMIT
 from tools import LoggerCallbackHandler
-
-current_folder = Path(__file__)
-parent_folder = current_folder.parent
-task_data_folder = parent_folder / DATA_FOLDER / TASK_NAME
-
-os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
 
 url_folder = get_path_from_url(INDEX_MD_URL)
     

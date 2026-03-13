@@ -13,13 +13,13 @@ from s01e04.tools import get_file_list, read_file, save_file_from_url
 
 # Maximum number of rounds: LLM calls a tool → tool returns a result.
 # Each round = 2 LangGraph steps (one LLM step + one tool step).
-MAX_TOOL_ITERATIONS = 5
+MAX_TOOL_ITERATIONS = 20
 
 # recursion_limit is LangGraph's internal step counter — not an iteration counter.
 # Formula: each tool iteration = 2 steps, plus 1 step for the final LLM response,
 # plus 1 safety margin = MAX_TOOL_ITERATIONS * 2 + 2.
 # When the limit is reached, the agent ends gracefully with a message instead of raising an exception.
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 2 + 2  # 12
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 2 + 2
 
 memory = InMemorySaver()
 
