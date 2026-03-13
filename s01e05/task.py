@@ -10,6 +10,8 @@ from libs.logger import get_logger
 from pathlib import Path
 import requests
 import json
+from agents import railway_agent
+
 
 load_dotenv()
 AI_DEVS_SECRET =  os.getenv('AI_DEVS_SECRET')
@@ -26,23 +28,31 @@ parent_folder = current_folder.parent
 
 logger = get_logger(TASK, log_dir=parent_folder / DATA_FOLDER/ "logs_task")
 
+if __name__ == "__main__":
 
-ans = {
-    "apikey": AI_DEVS_SECRET,
-    "task": TASK_NAME,
-    "answer": {
-        "action": "help"
+    ans = {
+        "apikey": AI_DEVS_SECRET,
+        "task": TASK_NAME,
+        "answer": {
+            "action": "help"
 
+        }
     }
-}
 
-logger.info(f"Sending answer: {ans}")
-response = requests.post(SOLUTION_URL, json=ans)
-logger.info(f"Response status: {response.status_code}")
-logger.info(f"Response body: {response.text}")
-print(response.text)
+    logger.info(f"Sending answer: {ans}")
+    response = requests.post(SOLUTION_URL, json=ans)
+    logger.info(f"Response status: {response.status_code}")
+    logger.info(f"Response body: {response.text}")
+    print(response.text)
 
-answer_file = parent_folder / DATA_FOLDER / 'answer.txt'
+    answer_file = parent_folder / DATA_FOLDER / 'answer.txt'
 
-with open(answer_file, 'wb') as f:
-    f.write(response.content)
+    with open(answer_file, 'wb') as f:
+        f.write(response.content)
+        
+    result = railway_agent.invoke(
+        {"messages": [{"role": "user", "content": "Activate route X-01 and find the flag."}]},
+        config={"configurable": {"thread_id": "railway-1"}},
+    )
+    logger.info(result["messages"][-1].content)
+
