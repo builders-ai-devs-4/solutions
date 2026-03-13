@@ -60,7 +60,7 @@ _ANALYSIS_SYSTEM_PROMPT = _ANALYSIS_PROMPT_PATH.read_text(encoding="utf-8")
 
 def analyze_text_file(text_content: str, filename: str) -> IndexEntry:
     """Send text file content to LLM and return structured IndexEntry."""
-    llm = ChatOpenAI(model="openai:gpt-5-mini", temperature=0)
+    llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
     messages = [
         SystemMessage(_ANALYSIS_SYSTEM_PROMPT),
         HumanMessage(f"File: {filename}\n\n{text_content}"),
