@@ -4,13 +4,12 @@ from dotenv import load_dotenv
 from string import Template
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from libs.generic_helpers import save_file
+from libs.generic_helpers import get_path_from_url, save_file
 from libs.logger import get_logger
 
 from pathlib import Path
 import requests
 import json
-
 
 load_dotenv()
 
@@ -23,21 +22,44 @@ INDEX_MD_URL =  os.getenv('SOURCE_URL1')
 DATA_FOLDER =  os.getenv('DATA_FOLDER')
 TASK_NAME =  os.getenv('TASK_NAME')
 
-
 import json
+from agents import asset_collector_agent, agent_logger, _RECURSION_LIMIT
+from tools import LoggerCallbackHandler
 
 current_folder = Path(__file__)
 parent_folder = current_folder.parent
 task_data_folder = parent_folder / DATA_FOLDER / TASK_NAME
 
-# logger = get_logger(TASK, log_dir=parent_folder / DATA_FOLDER/ "logs")
-
 os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
+
+url_folder = get_path_from_url(INDEX_MD_URL)
     
+app_logger = get_logger(
+    "app.s01e04",
+    log_dir=task_data_folder / "logs",
+    log_stem="task",
+)
+
 if __name__ == '__main__':
-    
-    index_md_file = save_file(INDEX_MD_URL, task_data_folder)
-
-
+    app_logger.info("Starting asset_collector_agent")
+    result = asset_collector_agent.invoke(
+        {
+            "messages": [{
+                "role": "user",
+                "content": (
+                    f"index_md_url: {INDEX_MD_URL}\n"
+                    f"save_folder: {task_data_folder}\n"
+                    f"base_url: {url_folder}"
+                )
+            }]
+        },
+        config={
+            "configurable": {"thread_id": "asset-collector-1"},
+            "callbacks": [LoggerCallbackHandler(agent_logger)],
+            "recursion_limit": _RECURSION_LIMIT,
+        },
+    )
+    app_logger.info("Agent finished")
+    app_logger.info(result["messages"][-1].content)
 
 

@@ -16,8 +16,29 @@ AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
 PARENT_FOLDER_PATH = Path(os.getenv("PARENT_FOLDER_PATH"))
 PACKAGES_URL = os.getenv('POST_URL1')
 
+import logging
+
+class LoggerCallbackHandler(BaseCallbackHandler):
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+
+    def on_tool_start(self, serialized, input_str, **kwargs):
+        self.logger.info(f"[TOOL START] {serialized.get('name')} | input: {input_str}")
+
+    def on_tool_end(self, output, **kwargs):
+        self.logger.info(f"[TOOL END] output: {str(output)[:200]}")
+
+    def on_tool_error(self, error, **kwargs):
+        self.logger.error(f"[TOOL ERROR] {error}")
+
+    def on_llm_start(self, serialized, prompts, **kwargs):
+        self.logger.debug(f"[LLM START] {serialized.get('name')}")
+
+    def on_llm_end(self, response, **kwargs):
+        self.logger.debug(f"[LLM END] {str(response)[:200]}")
+        
 @tool
-def get_file_from_url(url: str, folder: Path) -> Path | None:
+def save_file_from_url(url: str, folder: Path) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
     return save_file(url, folder)
 

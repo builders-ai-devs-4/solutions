@@ -3,8 +3,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 import os
 import base64
-
-from fastapi import requests
+import requests
 
 def get_filename_from_url(url: str = None) -> str:
     if url is None:
