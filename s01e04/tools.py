@@ -64,15 +64,18 @@ def save_file_from_url(url: str, folder: Path) -> Path | None:
     return save_file(url, folder)
 
 @tool
-def get_file_list(folder: Path, filter: str = None) -> list[str]:
+# def get_file_list(folder: Path | str, filter: str = None) -> list[str]:
+def get_file_list(folder: str, filter: str = None) -> list[str]:
     """ Get a list of files in the specified folder, optionally filtered by a string .f.ex md. 
     No wildcards, just a simple substring match."""
+    folder = Path(folder)
     if filter:
         return [f for f in folder.glob(f"*{filter}*") if f.is_file()]
     return [f for f in folder.glob("*") if f.is_file()]
 
 @tool
-def read_file(file_path: Path | str) -> str:
+# def read_file(file_path: Path | str) -> str:
+def read_file(file_path: str) -> str:
     """ Read the contents of a file and returns as a strng. Text files are read as UTF-8, 
     binary files (targeted to images) are read and returned as base64-encoded string."""
     file_path = Path(file_path)
@@ -91,16 +94,3 @@ def load_index(index_path: Path) -> dict:
         return {"files": {}}
     with index_path.open("r", encoding="utf-8") as f:
         return json.load(f)
-    
-# @tool
-# def redirect_package(packageid: str, destination: str, code: str) -> dict:
-#     """Redirect a package to a new destination using a security code provided by the operator.
-#     Returns a confirmation code that must be passed back to the operator."""
-#     payload = RedirectPackageRequest(
-#         apikey=AI_DEVS_SECRET,
-#         packageid=packageid,
-#         destination=destination,
-#         code=code,
-#     )
-#     response = requests.post(PACKAGES_URL, json=payload.model_dump())
-#     return response.json()

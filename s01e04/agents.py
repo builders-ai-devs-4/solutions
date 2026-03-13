@@ -3,8 +3,9 @@ import json
 import os
 from pathlib import Path
 import sys
+import uuid
 from langchain.agents import create_agent
-from langchain.messages import HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from libs.generic_helpers import read_file_base64, read_file_text
@@ -13,9 +14,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from libs.filetype_detect import detect_file_type
 from libs.logger import get_logger
-from tools import IndexEntry, get_file_list, load_index, read_file, save_file_from_url
+from tools import IndexEntry, LoggerCallbackHandler, get_file_list, load_index, read_file, save_file_from_url
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
+from pydantic import BaseModel, Field
+
+
+class DeclarationForm(BaseModel):
+    """Completed SPK transport declaration, formatted exactly as the template."""
+    declaration: str = Field(
+        description="The fully completed SPK declaration form, reproduced character-for-character from the template."
+    )
 
 # Maximum number of rounds: LLM calls a tool → tool returns a result.
 # Each round = 2 LangGraph steps (one LLM step + one tool step).
@@ -40,7 +49,7 @@ agent_logger = get_logger(
 )
 
 asset_collector_agent = create_agent(
-    model="openai:gpt-5-mini",
+    model="openai:gpt-4o-mini",
     tools=[save_file_from_url, get_file_list, read_file],
     system_prompt=asset_collector_agent_system_prompt,
     checkpointer=memory,
@@ -51,7 +60,7 @@ _ANALYSIS_SYSTEM_PROMPT = _ANALYSIS_PROMPT_PATH.read_text(encoding="utf-8")
 
 def analyze_text_file(text_content: str, filename: str) -> IndexEntry:
     """Send text file content to LLM and return structured IndexEntry."""
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatOpenAI(model="openai:gpt-5-mini", temperature=0)
     messages = [
         SystemMessage(_ANALYSIS_SYSTEM_PROMPT),
         HumanMessage(f"File: {filename}\n\n{text_content}"),
@@ -106,3 +115,35 @@ def save_entry_to_index(index_path: Path, file_path: Path, file_type: str, entry
     index_path.parent.mkdir(parents=True, exist_ok=True)
     with index_path.open("w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False, indent=2)
+
+
+_REACT_PROMPT_PATH = PROMPTS_DIR / "react_agent_system_prompt.md"
+_react_system_prompt = _REACT_PROMPT_PATH.read_text(encoding="utf-8")
+
+react_logger = get_logger(
+    "agent.react",
+    log_dir=Path(os.getenv("DATA_FOLDER_PATH")) / "logs",
+    log_stem="react_agent",
+)
+
+react_agent = create_agent(
+    model="openai:gpt-5-mini",
+    tools=[read_file, get_file_list],
+    system_prompt=_react_system_prompt,
+    response_format=DeclarationForm,
+    checkpointer=memory,
+)
+
+def fill_form(index_json_path: Path) -> DeclarationForm:
+    result = react_agent.invoke(
+        {"messages": [{
+            "role": "user",
+            "content": f"index_json_path: {index_json_path}"
+        }]},
+        config={
+            "configurable": {"thread_id": f"react-{uuid.uuid4()}"},
+            "callbacks": [LoggerCallbackHandler(react_logger)],
+            "recursion_limit": _RECURSION_LIMIT,
+        },
+    )
+    return result["structured_response"]

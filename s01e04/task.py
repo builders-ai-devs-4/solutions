@@ -33,7 +33,7 @@ task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
 os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
 
 import json
-from agents import asset_collector_agent, agent_logger, _RECURSION_LIMIT, build_memory_index
+from agents import asset_collector_agent, agent_logger, _RECURSION_LIMIT, build_memory_index, fill_form, DeclarationForm
 from tools import LoggerCallbackHandler
 
 url_folder = get_path_from_url(INDEX_MD_URL)
@@ -72,4 +72,30 @@ if __name__ == '__main__':
     build_memory_index(task_data_folder, index_path)
     app_logger.info("Memory index complete")
 
+    app_logger.info("Starting react_agent to fill the form")
+    form: DeclarationForm = fill_form(index_path)
+    app_logger.info(f"Form:\n{form.declaration}")
 
+    app_logger.info("Submitting answer to hub")
+    
+    
+    ans = {
+        "apikey": AI_DEVS_SECRET,
+        "task": TASK_NAME,
+        "answer": {
+            "declaration": form.declaration,
+        }
+        
+    }
+    response = requests.post(
+        SOLUTION_URL,
+        json=ans,
+    )
+    
+    app_logger.info(f"Hub response: {response.status_code} {response.text}")
+    print(response.text)
+
+    answer_file = parent_folder_path / DATA_FOLDER / 'answer.txt'
+
+    with open(answer_file, 'wb') as f:
+        f.write(response.content)
