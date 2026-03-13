@@ -138,7 +138,7 @@ def fill_form(index_json_path: Path) -> DeclarationForm:
     result = react_agent.invoke(
         {"messages": [{
             "role": "user",
-            "content": f"index_json_path: {index_json_path}"
+            "content": f"Fill out the declaration according to the template and regulations in the documentation, see the documentation at: {index_json_path}"
         }]},
         config={
             "configurable": {"thread_id": f"react-{uuid.uuid4()}"},
