@@ -73,7 +73,15 @@ if __name__ == '__main__':
     app_logger.info("Memory index complete")
 
     app_logger.info("Starting react_agent to fill the form")
-    form: DeclarationForm = fill_form(index_path)
+    form: DeclarationForm = fill_form(index_path, shipment={
+    "sender": "450202122",
+    "origin": "Gdańsk",
+    "destination": "Żarnowiec",
+    "weight_kg": 2800,
+    "budget_pp": 0,
+    "contents": "kasety z paliwem do reaktora",
+    "special_notes": "Brak",
+    })
     app_logger.info(f"Form:\n{form.declaration}")
 
     app_logger.info("Submitting answer to hub")

@@ -134,11 +134,15 @@ react_agent = create_agent(
     checkpointer=memory,
 )
 
-def fill_form(index_json_path: Path) -> DeclarationForm:
+def fill_form(index_json_path: Path, shipment: dict) -> DeclarationForm:
+    shipment_block = "\n".join(f"{k}: {v}" for k, v in shipment.items())
     result = react_agent.invoke(
         {"messages": [{
             "role": "user",
-            "content": f"Fill out the declaration according to the template and regulations in the documentation, see the documentation at: {index_json_path}"
+            "content": (
+                f"index_json_path: {index_json_path}\n\n"
+                f"Shipment data:\n{shipment_block}"
+            )
         }]},
         config={
             "configurable": {"thread_id": f"react-{uuid.uuid4()}"},
