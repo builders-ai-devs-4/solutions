@@ -1,8 +1,10 @@
+import json
 import logging
 from pathlib import Path
 import sys
 from langchain_core.tools import tool
 import os
+from pydantic import BaseModel, Field
 import requests
 from langchain_core.callbacks import BaseCallbackHandler
 
@@ -37,6 +39,25 @@ class LoggerCallbackHandler(BaseCallbackHandler):
     def on_llm_end(self, response, **kwargs):
         self.logger.debug(f"[LLM END] {str(response)[:200]}")
         
+class IndexEntry(BaseModel):
+    """Structured analysis of a single file produced by the document analyst LLM."""
+
+    summary: str = Field(
+        description="2-4 sentence description of the file content and its relevance."
+    )
+    image_content: str = Field(
+        default="",
+        description="For image files: verbatim transcription of all visible text, numbers and tables. For text files: empty string."
+    )
+    is_form_template: bool = Field(
+        default=False,
+        description="True if the file contains empty placeholder fields to be filled in. False otherwise."
+    )
+    notes: str = Field(
+        default="",
+        description="Special file characteristics (e.g. restricted access, ASCII map, glossary). Empty string if none apply."
+    )
+    
 @tool
 def save_file_from_url(url: str, folder: Path) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
@@ -63,6 +84,13 @@ def read_file(file_path: Path | str) -> str:
         return read_file_text(file_path)
     else:
         return read_file_base64(file_path)
+
+def load_index(index_path: Path) -> dict:
+    """Load the memory index from disk. Returns empty index if file does not exist."""
+    if not index_path.exists():
+        return {"files": {}}
+    with index_path.open("r", encoding="utf-8") as f:
+        return json.load(f)
     
 # @tool
 # def redirect_package(packageid: str, destination: str, code: str) -> dict:
