@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from string import Template
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from libs.generic_helpers import get_filename_from_url
+from libs.generic_helpers import save_file
 from libs.logger import get_logger
 
 from pathlib import Path
@@ -28,18 +28,15 @@ import json
 
 current_folder = Path(__file__)
 parent_folder = current_folder.parent
+task_data_folder = parent_folder / DATA_FOLDER / TASK_NAME
 
 # logger = get_logger(TASK, log_dir=parent_folder / DATA_FOLDER/ "logs")
 
+os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
+    
 if __name__ == '__main__':
     
-    file_name = get_filename_from_url(INDEX_MD_URL)
-    index_md_file = parent_folder / DATA_FOLDER / file_name
-    index_md_file.parent.mkdir(parents=True, exist_ok=True)
-    if not index_md_file.exists():
-        r = requests.get(INDEX_MD_URL) 
-        with open(index_md_file, 'wb') as f:
-            f.write(r.content)
+    index_md_file = save_file(INDEX_MD_URL, task_data_folder)
 
 
 
