@@ -41,25 +41,25 @@ if __name__ == "__main__":
     tokens, num_tokens = encode_prompt(prompt, "gpt-5-mini")
     categorize_filename = get_path_from_url(categorize_url)
     save_file(categorize_url, task_data_folder, override=True)
-    logger.info(f"Saved csv data to: {task_data_folder / categorize_filename}")
+    # logger.info(f"Saved csv data to: {task_data_folder / categorize_filename}")
     
-    ans = {
-        "apikey": AI_DEVS_SECRET,
-        "task": TASK_NAME,
-        "answer": {
-            "prompt": prompt
+    # ans = {
+    #     "apikey": AI_DEVS_SECRET,
+    #     "task": TASK_NAME,
+    #     "answer": {
+    #         "prompt": prompt
 
-        }
-    }
+    #     }
+    # }
 
-    logger.info(f"Sending answer: {ans}")
-    response = requests.post(SOLUTION_URL, json=ans)
-    logger.info(f"Response status: {response.status_code}")
-    logger.info(f"Response body: {response.text}")
-    print(response.text)
+    # logger.info(f"Sending answer: {ans}")
+    # response = requests.post(SOLUTION_URL, json=ans)
+    # logger.info(f"Response status: {response.status_code}")
+    # logger.info(f"Response body: {response.text}")
+    # print(response.text)
 
-    answer_file = task_data_folder / 'answer.txt'
+    # answer_file = task_data_folder / 'answer.txt'
 
-    with open(answer_file, 'wb') as f:
-        f.write(response.content)
+    # with open(answer_file, 'wb') as f:
+    #     f.write(response.content)
         
