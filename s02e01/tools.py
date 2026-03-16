@@ -49,8 +49,9 @@ def scan_flag(text: str, logger: Logger) -> Optional[str]:
     return None
    
 @tool
-def save_file_from_url(url: str, folder: Path) -> Path | None:
+def save_file_from_url(url: str, folder: str) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
+    Path(folder).mkdir(parents=True, exist_ok=True)
     return save_file(url, folder)
 
 @tool
@@ -100,9 +101,10 @@ def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     return count
 
 @tool
-def send_prompt_to_server(prompt: str) -> ServerResponse:
-    """Send a classification prompt to the categorization server and return the response.
-    Use prompt='reset' to reset the server session before starting a new cycle."""
+def send_to_server(prompt: str) -> dict:
+    """Send a prompt to the solution server. Use prompt='reset' to reset the session.
+    For classification: use the generated classification prompt.
+    Returns server response with 'code', 'message', and optionally 'balance'."""
     payload = CategorizationRequest(
         apikey=AI_DEVS_SECRET,
         task=TASK_NAME,
@@ -110,5 +112,5 @@ def send_prompt_to_server(prompt: str) -> ServerResponse:
     )
     response = requests.post(SOLUTION_URL, json=payload.model_dump())
     response.raise_for_status()
-    return ServerResponse(**response.json())
+    return response.json() 
 
