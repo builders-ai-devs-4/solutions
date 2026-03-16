@@ -68,7 +68,7 @@ EXECUTOR_CONFIG = {
 _executor = create_agent(
     model="openai:gpt-5-mini",
 
-    tools=[send_to_server, save_file_from_url, read_csv, scan_flag, count_prompt_tokens],
+    tools=[send_to_server, save_file_from_url, read_csv, scan_flag],
     system_prompt=EXECUTOR_SYS_PROMPT,
     name="executor",
 )

@@ -12,10 +12,6 @@ Execute the following sequence in order:
    stop the cycle and return the list of errors to the supervisor.
 7. After sending all 10 queries return the full list of server responses.
 
-## Token Budget
-- Before sending the first classification query (step 4), call `count_prompt_tokens(prompt=<full prompt for row 1>)` to log the token count.
-- If the response from `send_to_server` contains `"code": -930` or other negative code, log it and stop the cycle — report the error to the supervisor.
-
 ## Configuration
 - CATEGORIZATION_URL: {CATEGORIZATION_URL}
 - DATA_FOLDER_PATH: {DATA_FOLDER_PATH}
