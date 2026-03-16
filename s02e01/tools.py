@@ -1,5 +1,6 @@
 
 from logging import Logger
+import logging
 from pathlib import Path
 import re
 import sys
@@ -40,11 +41,16 @@ SOLUTION_URL        = os.environ["SOLUTION_URL"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 
-def scan_flag(text: str, logger: Logger) -> Optional[str]:
-    """Search for a {FLG:...} flag in text. Logs and returns it if found."""
+_logger = logging.getLogger(__name__)
+
+@tool
+def scan_flag(text: str) -> Optional[str]:
+    """Search for a flag in format {FLG:...} in the given text.
+    Returns the flag string if found, or None if not present.
+    Call this after every server response to detect task completion."""
     match = FLAG_RE.search(text)
     if match:
-        logger.info(f"[FLAG FOUND] {match.group(0)}")
+        _logger.info(f"[FLAG FOUND] {match.group(0)}")
         return match.group(0)
     return None
    

@@ -31,15 +31,15 @@ categorize_url = categorize_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["CATEGORIZATION_URL"] = str(categorize_url)
 
 from tools import encode_prompt
-from agents import supervisor
-logger = get_logger(TASK, log_dir=parent_folder_path / DATA_FOLDER / "logs_task")
+from agents import SUPERVISOR_CONFIG, supervisor
+from loggers import agent_logger, api_logger
 
 if __name__ == "__main__":
     
-    logger.info(f"Getting csv data from: {categorize_url}")
-    result = supervisor.invoke({
-        "messages": [{"role": "user", "content":
-            "Stwórz prompt klasyfikacyjny DNG/NEU, wykonaj cykl i zwróć wynik."}]
-    })
-    print(result["messages"][-1].content)
+    api_logger(f"Starting Supervisor Agent execution for task: {TASK_NAME}")
+    result = supervisor.invoke(
+        {"messages": [{"role": "user", "content": "Stwórz prompt klasyfikacyjny DNG/NEU, wykonaj cykl i zwróć wynik."}]},
+        config=SUPERVISOR_CONFIG,
+    )
+    agent_logger.info(f"[supervisor] {result['messages'][-1].content}")
         
