@@ -25,7 +25,6 @@ EXECUTOR_SYS_PROMPT = _EXECUTOR_PROMPT_TEMPLATE.format(
 )
 
 
-llm = ChatOpenAI(model="gpt-4o")
 
 
 MAX_TOOL_ITERATIONS = 10  # 10 zapytań + reset + pobierz CSV ~ 12 tool calls
@@ -38,12 +37,10 @@ PROMPT_ENGINEER_CONFIG = {
 
 # ── Subagent 1: Prompt Engineer ──────────────────────────────────────────────
 
-_prompt_engineer = create_agent(
-    llm,
-)
 
 _prompt_engineer = create_agent(
-    llm,
+    model="openai:gpt-5.1",
+
     tools=[count_prompt_tokens],
     system_prompt=META_PROMPT,
     name="prompt_engineer",
@@ -70,7 +67,8 @@ EXECUTOR_CONFIG = {
 }
 
 _executor = create_agent(
-    llm,
+    model="openai:gpt-5-mini",
+
     tools=[send_to_server, save_file_from_url, read_csv, scan_flag],
     system_prompt=EXECUTOR_SYS_PROMPT,
     name="executor",
@@ -103,7 +101,7 @@ SUPERVISOR_CONFIG = {
 }
 
 supervisor = create_agent(
-    llm,
+    model="openai:gpt-5-mini",
     tools=[call_prompt_engineer, call_executor],
     system_prompt=SUPERVISOR_SYS_PROMPT,
     name="supervisor",
