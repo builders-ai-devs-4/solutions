@@ -36,7 +36,7 @@ from loggers import agent_logger, api_logger
 
 if __name__ == "__main__":
     
-    api_logger(f"Starting Supervisor Agent execution for task: {TASK_NAME}")
+    api_logger.info(f"Starting Supervisor Agent execution for task: {TASK_NAME}")
     result = supervisor.invoke(
         {"messages": 
             [{"role": "user", "content": "Create a DNG/NEU classification prompt, run the cycle and return the result."}]},

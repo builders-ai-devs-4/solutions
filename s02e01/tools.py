@@ -104,6 +104,7 @@ def encode_prompt(prompt: str, model_name: str) -> Tuple[list[int], int]:
 def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     """Count the number of tokens in a prompt for budget tracking."""
     _, count = encode_prompt(prompt, model_name)
+    _logger.info(f"[count_prompt_tokens] model={model_name} tokens={count}")
     return count
 
 @tool
@@ -117,7 +118,11 @@ def send_to_server(prompt: str) -> dict:
         task=TASK_NAME,
         answer=CategorizationAnswer(prompt=prompt),
     )
+    _logger.debug(f"[send_to_server] POST {SOLUTION_URL} payload={payload.model_dump()}")
     response = requests.post(SOLUTION_URL, json=payload.model_dump())
-    response.raise_for_status()
+    if not response.ok:
+        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
+        _logger.error(f"[send_to_server] {response.status_code} body={error_body}")
+        return error_body
     return response.json() 
 

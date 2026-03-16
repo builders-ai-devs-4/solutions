@@ -18,9 +18,9 @@ def get_path_from_url(url: str = None) -> str:
         return None
     return urljoin(url, ".")
 
-def save_file(file_url: str, folder: Path, override: bool = False) -> Path:
+def save_file(file_url: str, folder: Path | str, override: bool = False) -> Path:
     file_name = get_filename_from_url(file_url)
-    index_md_file = folder / file_name
+    index_md_file = Path(folder) / file_name
     index_md_file.parent.mkdir(parents=True, exist_ok=True)
     if not index_md_file.exists() or override:
         r = requests.get(file_url) 

@@ -12,22 +12,19 @@ CATEGORIZATION_URL = os.environ["CATEGORIZATION_URL"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 
-META_PROMPT = (PARENT_FOLDER_PATH / "prompts" / "meta_prompt.md"
+META_PROMPT = (Path(PARENT_FOLDER_PATH) / "prompts" / "meta_prompt.md"
                ).read_text(encoding="utf-8")
-SUPERVISOR_SYS_PROMPT = (PARENT_FOLDER_PATH / "promts" / "supervisor_system.md"
+SUPERVISOR_SYS_PROMPT = (Path(PARENT_FOLDER_PATH) / "prompts" / "supervisor_system.md"
                      ).read_text(encoding="utf-8")
 
-_EXECUTOR_PROMPT_TEMPLATE = (Path(PARENT_FOLDER_PATH) / "promts" / "executor_system.md"
+_EXECUTOR_PROMPT_TEMPLATE = (Path(PARENT_FOLDER_PATH) / "prompts" / "executor_system.md"
                              ).read_text(encoding="utf-8")
 EXECUTOR_SYS_PROMPT = _EXECUTOR_PROMPT_TEMPLATE.format(
     CATEGORIZATION_URL=CATEGORIZATION_URL,
     DATA_FOLDER_PATH=DATA_FOLDER_PATH,
 )
 
-
-
-
-MAX_TOOL_ITERATIONS = 10  # 10 zapytań + reset + pobierz CSV ~ 12 tool calls
+MAX_TOOL_ITERATIONS = 10  # 10 requests + reset + download CSV ~ 12 tool calls
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 2 + 2  # 22
 
 PROMPT_ENGINEER_CONFIG = {
@@ -69,7 +66,7 @@ EXECUTOR_CONFIG = {
 _executor = create_agent(
     model="openai:gpt-5-mini",
 
-    tools=[send_to_server, save_file_from_url, read_csv, scan_flag],
+    tools=[send_to_server, save_file_from_url, read_csv, scan_flag, count_prompt_tokens],
     system_prompt=EXECUTOR_SYS_PROMPT,
     name="executor",
 )
