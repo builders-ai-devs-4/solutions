@@ -25,6 +25,8 @@ parent_folder_path  = current_folder.parent
 task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
 os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
 
+from tools import encode_prompt
+
 logger = get_logger(TASK, log_dir=parent_folder_path / DATA_FOLDER / "logs_task")
 
 
@@ -33,8 +35,10 @@ categorize_url = categorize_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 
 if __name__ == "__main__":
     
+    prompt = "Serce rośnie, patrząc na to, jak Oskar radzi sobie w lidze portugalskiej. Czujemy dumę, patrząc na Oskara. Mogliśmy dostać za niego wyższą kwotę odstępnego, sprzedając do innego klubu, ale nie wiadomo, czy grałby np. w Anglii."
+ 
     logger.info(f"Getting csv data from: {categorize_url}")
-    
+    tokens, num_tokens = encode_prompt(prompt, "gpt-5-mini")
     categorize_filename = get_path_from_url(categorize_url)
     save_file(categorize_url, task_data_folder, override=True)
     logger.info(f"Saved csv data to: {task_data_folder / categorize_filename}")
@@ -43,7 +47,7 @@ if __name__ == "__main__":
         "apikey": AI_DEVS_SECRET,
         "task": TASK_NAME,
         "answer": {
-            "prompt": "prompt content"
+            "prompt": prompt
 
         }
     }
