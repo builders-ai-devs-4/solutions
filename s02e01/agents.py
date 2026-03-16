@@ -5,8 +5,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from tools import read_file, read_csv, save_file_from_url, scan_flag, send_to_server, count_prompt_tokens
-from loggers import LoggerCallbackHandler, agent_logger
+from loggers import LoggerCallbackHandler, agent_logger,get_logger, _log_dir
 from langchain_core.callbacks import BaseCallbackHandler
+
+prompt_logger = get_logger("prompt", log_dir=_log_dir(), log_stem="prompt")
 
 CATEGORIZATION_URL = os.environ["CATEGORIZATION_URL"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
@@ -86,6 +88,7 @@ def call_executor(classification_prompt: str) -> str:
     )
     answer = result["messages"][-1].content
     agent_logger.info(f"[executor] {answer}")
+    prompt_logger.info(answer)
     return answer
     
 
@@ -99,7 +102,7 @@ SUPERVISOR_CONFIG = {
 
 supervisor = create_agent(
     model="openai:gpt-5-mini",
-    tools=[call_prompt_engineer, call_executor],
+    tools=[call_prompt_engineer, call_executor, count_prompt_tokens],
     system_prompt=SUPERVISOR_SYS_PROMPT,
     name="supervisor",
     checkpointer=InMemorySaver(),

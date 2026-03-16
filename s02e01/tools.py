@@ -1,6 +1,5 @@
 
 from logging import Logger
-import logging
 from pathlib import Path
 import re
 import sys
@@ -16,6 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.filetype_detect import detect_file_type
 from libs.generic_helpers import read_csv_rows, read_file_base64, read_file_text, save_file
 import tiktoken
+from loggers import agent_logger, api_logger
 
 
 class CategorizationAnswer(BaseModel):
@@ -41,8 +41,6 @@ SOLUTION_URL        = os.environ["SOLUTION_URL"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 
-_logger = logging.getLogger(__name__)
-
 @tool
 def scan_flag(text: str) -> Optional[str]:
     """Search for a flag in format {FLG:...} in the given text.
@@ -50,7 +48,7 @@ def scan_flag(text: str) -> Optional[str]:
     Call this after every server response to detect task completion."""
     match = FLAG_RE.search(text)
     if match:
-        _logger.info(f"[FLAG FOUND] {match.group(0)}")
+        agent_logger.info(f"[FLAG FOUND] {match.group(0)}")
         return match.group(0)
     return None
    
@@ -104,7 +102,7 @@ def encode_prompt(prompt: str, model_name: str) -> Tuple[list[int], int]:
 def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     """Count the number of tokens in a prompt for budget tracking."""
     _, count = encode_prompt(prompt, model_name)
-    _logger.info(f"[count_prompt_tokens] model={model_name} tokens={count}")
+    agent_logger.info(f"[count_prompt_tokens] model={model_name} tokens={count}")
     return count
 
 @tool
@@ -118,11 +116,11 @@ def send_to_server(prompt: str) -> dict:
         task=TASK_NAME,
         answer=CategorizationAnswer(prompt=prompt),
     )
-    _logger.debug(f"[send_to_server] POST {SOLUTION_URL} payload={payload.model_dump()}")
+    agent_logger.debug(f"[send_to_server] POST {SOLUTION_URL} payload={payload.model_dump()}")
     response = requests.post(SOLUTION_URL, json=payload.model_dump())
     if not response.ok:
         error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
-        _logger.error(f"[send_to_server] {response.status_code} body={error_body}")
+        agent_logger.error(f"[send_to_server] {response.status_code} body={error_body}")
         return error_body
     return response.json() 
 

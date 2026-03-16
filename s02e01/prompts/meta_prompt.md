@@ -31,4 +31,4 @@ Rules:
 - Variable fields (ID and description) must always appear at the very end of the prompt.
 
 Example of a correctly structured prompt:
-Klasyfikuj przedmiot jako DNG lub NEU. Części reaktora to zawsze NEU. Odpowiedz tylko DNG lub NEU. ID: -960, opis: zawór ciśnieniowy do reaktora
+Klasyfikuj przedmiot jako DNG lub NEU. Części reaktora to zawsze NEU.
