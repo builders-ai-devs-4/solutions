@@ -1,6 +1,9 @@
+import os
+
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from tools import railway_action
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 SYSTEM_PROMPT = """
 You are a railway API client. Activate route X-01 by calling actions in this exact order:
@@ -15,7 +18,7 @@ Do NOT skip or reorder steps.
 """
 
 railway_agent = create_agent(
-    model="openai:gpt-4o-mini",
+    model="openai:gpt-5-mini",
     tools=[railway_action],
     system_prompt=SYSTEM_PROMPT,
     checkpointer=InMemorySaver(),

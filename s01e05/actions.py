@@ -1,40 +1,21 @@
+import os
+import sys
 import time
 import re
-import json
 import requests
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from logging import Logger
 from typing import Optional
 
+from helpers import _build_payload, _handle_429, _handle_503, _log_response, _parse_body, _scan_flag, _send, _wait_for_rate_limit
 
-# 
-
-# # task.py 
-# import os, sys
-# from pathlib import Path
-# from dotenv import load_dotenv
-
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# from libs.logger import get_logger
-# from helpers import call_action   # ← Twój helpers.py
-
-# load_dotenv()
-# AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
-# TASK_NAME      = os.getenv('TASK_NAME')
-# DATA_FOLDER    = os.getenv('DATA_FOLDER')
-
-# current_folder = Path(__file__)
-# parent_folder  = current_folder.parent
-# logger = get_logger(TASK_NAME, log_dir=parent_folder / DATA_FOLDER / "logs_task")
 
 # ROUTE = "X-01"
-
-# if __name__ == "__main__":
 #     call_action(AI_DEVS_SECRET, TASK_NAME, "reconfigure", logger, route=ROUTE)
 #     call_action(AI_DEVS_SECRET, TASK_NAME, "getstatus",   logger, route=ROUTE)
 #     call_action(AI_DEVS_SECRET, TASK_NAME, "setstatus",   logger, route=ROUTE, value="RTOPEN")
 #     call_action(AI_DEVS_SECRET, TASK_NAME, "save",        logger, route=ROUTE)
-
-# 
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 

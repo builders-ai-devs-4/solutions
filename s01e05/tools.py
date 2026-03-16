@@ -1,11 +1,14 @@
 import os
+import sys
 from langchain.tools import tool
-from helpers import call_action
+from actions import call_action
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from libs.logger import get_logger
 
 _logger = get_logger("railway.tool")
-_APIKEY = os.getenv("AI_DEVS_SECRET")
-_TASK   = os.getenv("TASK_NAME")
+AI_DEVS_SECRET = os.getenv("AI_DEVS_SECRET")
+TASK_NAME   = os.getenv("TASK_NAME")
 
 
 @tool
@@ -17,7 +20,7 @@ def railway_action(action: str, route: str = "X-01", value: str = "") -> str:
     value:  required only for setstatus — RTOPEN or RTCLOSE
     """
     result = call_action(
-        _APIKEY, _TASK, action, _logger,
+        AI_DEVS_SECRET, TASK_NAME, action, _logger,
         route=route or None,
         value=value or None,
     )
