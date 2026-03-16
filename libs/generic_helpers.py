@@ -1,5 +1,7 @@
 
+import csv
 from pathlib import Path
+from typing import Any, Iterator
 from urllib.parse import urljoin, urlsplit
 import os
 import base64
@@ -37,3 +39,11 @@ def read_file_text(file_path: Path | str) -> str:
     path = Path(file_path)
     with path.open("r", encoding="utf-8") as f:
         return f.read()
+
+
+def read_csv_row(csv_file: Path) -> Iterator[dict[str, Any]]:
+    with csv_file.open(newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f, delimiter=',')
+        for row in reader:
+            row = row.copy()  
+            yield row
