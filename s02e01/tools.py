@@ -1,7 +1,8 @@
 
 from pathlib import Path
+import re
 import sys
-from typing import Tuple
+from typing import Optional, Tuple
 from langchain_core.tools import tool
 import os
 from pydantic import BaseModel, Field
@@ -15,6 +16,27 @@ from libs.generic_helpers import read_file_base64, read_file_text, save_file
 import tiktoken
 # gpt-5
 # gpt-5-mini
+
+# {
+#     "code": -960,
+#     "message": "Prompt rejected due to security policy.",
+#     "balance": 1.5
+# }
+
+FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
+
+def scan_flag(text: str, logger: Logger) -> Optional[str]:
+    """Search for a {FLG:...} flag in text. Logs and returns it if found."""
+    match = FLAG_RE.search(text)
+    if match:
+        logger.info(f"[FLAG FOUND] {match.group(0)}")
+        return match.group(0)
+    return None
+   
+@tool
+def save_file_from_url(url: str, folder: Path) -> Path | None:
+    """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
+    return save_file(url, folder)
 
 def encode_prompt(prompt: str, model_name: str) -> Tuple[list[int], int]:
     '''Encodes the prompt using the specified model's tokenizer and 
