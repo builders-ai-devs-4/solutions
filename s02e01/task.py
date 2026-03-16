@@ -27,10 +27,17 @@ os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
 
 logger = get_logger(TASK, log_dir=parent_folder_path / DATA_FOLDER / "logs_task")
 
+
+categorize_template = Template(CATEGORIZE)
+categorize_url = categorize_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
+
 if __name__ == "__main__":
     
-    categorize_filename = get_path_from_url(CATEGORIZE)
-    save_file(CATEGORIZE, task_data_folder)
+    logger.info(f"Getting csv data from: {categorize_url}")
+    
+    categorize_filename = get_path_from_url(categorize_url)
+    save_file(categorize_url, task_data_folder, override=True)
+    logger.info(f"Saved csv data to: {task_data_folder / categorize_filename}")
     
     ans = {
         "apikey": AI_DEVS_SECRET,
