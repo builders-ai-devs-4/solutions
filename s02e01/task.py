@@ -38,7 +38,8 @@ if __name__ == "__main__":
     
     api_logger(f"Starting Supervisor Agent execution for task: {TASK_NAME}")
     result = supervisor.invoke(
-        {"messages": [{"role": "user", "content": "Stwórz prompt klasyfikacyjny DNG/NEU, wykonaj cykl i zwróć wynik."}]},
+        {"messages": 
+            [{"role": "user", "content": "Create a DNG/NEU classification prompt, run the cycle and return the result."}]},
         config=SUPERVISOR_CONFIG,
     )
     agent_logger.info(f"[supervisor] {result['messages'][-1].content}")

@@ -8,9 +8,22 @@ from tools import read_file, read_csv, save_file_from_url, scan_flag, send_to_se
 from loggers import LoggerCallbackHandler, agent_logger
 from langchain_core.callbacks import BaseCallbackHandler
 
-META_PROMPT = (Path(__file__).parent / "promts" / "meta_prompt.md").read_text(encoding="utf-8")
 CATEGORIZATION_URL = os.environ["CATEGORIZATION_URL"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
+PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
+
+META_PROMPT = (PARENT_FOLDER_PATH / "prompts" / "meta_prompt.md"
+               ).read_text(encoding="utf-8")
+SUPERVISOR_SYS_PROMPT = (PARENT_FOLDER_PATH / "promts" / "supervisor_system.md"
+                     ).read_text(encoding="utf-8")
+
+_EXECUTOR_PROMPT_TEMPLATE = (Path(PARENT_FOLDER_PATH) / "promts" / "executor_system.md"
+                             ).read_text(encoding="utf-8")
+EXECUTOR_SYS_PROMPT = _EXECUTOR_PROMPT_TEMPLATE.format(
+    CATEGORIZATION_URL=CATEGORIZATION_URL,
+    DATA_FOLDER_PATH=DATA_FOLDER_PATH,
+)
+
 
 llm = ChatOpenAI(model="gpt-4o")
 
@@ -59,20 +72,7 @@ EXECUTOR_CONFIG = {
 _executor = create_agent(
     llm,
     tools=[send_to_server, save_file_from_url, read_csv, scan_flag],
-    system_prompt=(
-        "Wykonujesz sekwencję w tej kolejności:\n"
-        "1. send_to_server(prompt='reset') — zresetuj sesję\n"
-        "2. save_file_from_url(url=CATEGORIZATION_URL, folder=DATA_FOLDER_PATH) — pobierz CSV\n"
-        "3. read_csv(file_path=<ścieżka do pobranego pliku>) — odczytaj wiersze\n"
-        "4. Dla każdego z 10 wierszy: send_to_server(prompt=<classification_prompt z ID i opisem>)\n"
-        "5. Po każdym send_to_server wywołaj scan_flag na polu 'message' z odpowiedzi.\n"
-        "   Jeśli scan_flag zwróci flagę — natychmiast zatrzymaj cykl i zwróć flagę.\n"
-        "6. Jeśli odpowiedź zawiera 'classification error' lub 'budget exceeded' — "
-        "zatrzymaj cykl i zwróć listę błędów do supervisora.\n"
-        "7. Po wysłaniu wszystkich 10 zapytań zwróć pełną listę odpowiedzi serwera.\n"
-        f"CATEGORIZATION_URL={CATEGORIZATION_URL}\n"
-        f"DATA_FOLDER_PATH={DATA_FOLDER_PATH}"
-    ),
+    system_prompt=EXECUTOR_SYS_PROMPT,
     name="executor",
 )
 
@@ -84,9 +84,10 @@ _executor = create_agent(
     "Returns server responses or flag if found."
 ))
 def call_executor(classification_prompt: str) -> str:
-    result = _executor.invoke({"messages": [{"role": "user", "content":
-        f"Wykonaj cykl używając tego promptu klasyfikacyjnego:\n\n{classification_prompt}"}]},
-            config=EXECUTOR_CONFIG,
+    result = _executor.invoke(
+        {"messages": [{"role": "user", "content": classification_prompt}]},
+        config=EXECUTOR_CONFIG,
+        
     )
     answer = result["messages"][-1].content
     agent_logger.info(f"[executor] {answer}")
@@ -104,17 +105,7 @@ SUPERVISOR_CONFIG = {
 supervisor = create_agent(
     llm,
     tools=[call_prompt_engineer, call_executor],
-    system_prompt=(
-        "Jesteś supervisorem systemu klasyfikacji DNG/NEU.\n"
-        "Plan działania:\n"
-        "1. Wywołaj prompt_engineer — poproś o stworzenie promptu klasyfikacyjnego.\n"
-        "2. Przekaż prompt do executor — wykona cykl 10 zapytań.\n"
-        "3. Jeśli executor zwróci odpowiedzi z 'classification error' lub 'budget exceeded':\n"
-        "   - Przekaż błędy do prompt_engineer z prośbą o poprawę.\n"
-        "   - Powtórz krok 2.\n"
-        "4. Zakończ gdy wszystkie odpowiedzi są poprawne lub znajdziesz flagę {FLG:...}.\n"
-        "5. Zwróć końcowy wynik i flagę jeśli obecna."
-    ),
+    system_prompt=SUPERVISOR_SYS_PROMPT,
     name="supervisor",
     checkpointer=InMemorySaver(),
 )
