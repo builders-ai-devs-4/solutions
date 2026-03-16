@@ -102,9 +102,10 @@ def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
 
 @tool
 def send_to_server(prompt: str) -> dict:
-    """Send a prompt to the solution server. Use prompt='reset' to reset the session.
-    For classification: use the generated classification prompt.
-    Returns server response with 'code', 'message', and optionally 'balance'."""
+    """Send a prompt to the solution server (SOLUTION_URL).
+    Use prompt='reset' to reset the session before a new cycle.
+    For classification: pass the full classification prompt with code and description embedded.
+    Returns server response dict with 'code', 'message', and optionally 'balance'."""
     payload = CategorizationRequest(
         apikey=AI_DEVS_SECRET,
         task=TASK_NAME,

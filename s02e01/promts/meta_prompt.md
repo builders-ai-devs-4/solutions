@@ -19,3 +19,17 @@ Classification logic:
     - Output only “DNG” or “NEU”.
     - Reactor parts must always be “NEU”, even if they sound dangerous.
 On each iteration, output only the improved final prompt text.
+
+Required output format — the prompt you produce MUST follow this structure exactly:
+
+Required output format — the prompt you produce MUST follow this structure exactly:
+
+[static classification instructions — this part is identical across all 10 queries]
+ID: <value from CSV 'code' column>
+description: <value from CSV 'description' column>
+
+Rules:
+
+- The CSV column is named 'code' — use its value as the item ID in the prompt (label it 'ID:').
+- The static instructions must be byte-for-byte identical across all 10 queries to enable server-side caching.
+- 'ID:' and 'description:' lines must always be the last two lines.
