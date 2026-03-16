@@ -18,7 +18,6 @@ def get_path_from_url(url: str = None) -> str:
         return None
     return urljoin(url, ".")
 
-
 def save_file(file_url: str, folder: Path, override: bool = False) -> Path:
     file_name = get_filename_from_url(file_url)
     index_md_file = folder / file_name
@@ -47,3 +46,9 @@ def read_csv_row(csv_file: Path) -> Iterator[dict[str, Any]]:
         for row in reader:
             row = row.copy()  
             yield row
+
+def read_csv_rows(file_path: Path) -> list[dict]:
+    """Read a CSV file and return list of dicts with all columns as keys."""
+    with open(file_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return list(reader)
