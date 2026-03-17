@@ -119,6 +119,7 @@ def send_to_server(prompt: str) -> dict:
     agent_logger.debug(f"[send_to_server] Prompt \n {prompt}")
     agent_logger.debug(f"[send_to_server] POST {SOLUTION_URL} payload={payload.model_dump()}")
     response = requests.post(SOLUTION_URL, json=payload.model_dump())
+    agent_logger.debug(f"[send_to_server] Response headers: {dict(response.headers)}")
     if not response.ok:
         error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
         agent_logger.error(f"[send_to_server] {response.status_code} body={error_body}")

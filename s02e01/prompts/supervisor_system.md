@@ -1,4 +1,3 @@
-
 # Supervisor: DNG/NEU Classification System
 
 ## Budget
@@ -14,13 +13,31 @@
    If tokens > 65 → return to step 1 with instruction to shorten.
 3. Pass the prompt to `executor`.
 4. Parse the JSON returned by `executor`:
-   - `status == "flag_found"` → stop, return `flag` value.
-   - `status == "error"` (classification error / budget exceeded) → go to step 5.
-   - `errors` array non-empty → go to step 5.
-   - `errors` empty and `status == "completed"` → task failed silently, go to step 5.
-5. Build feedback for `prompt_engineer`:
-   - include the previous prompt text
-   - include each entry from `errors` as: `id=<id>, code=<server_code>, message=<server_message>`
-   - request an improved prompt addressing those specific error codes
+
+   - **Before acting on `status`**: verify that `responses` contains exactly 10 entries
+     and ALL have `server_code == 1`. If not — do NOT treat as completed, go to step 4b.
+
+   | `status` | Action |
+   |---|---|
+   | `"flag_found"` | Stop, return `flag` value |
+   | `"completed"` (all 10 ACCEPTED) | Stop — task done |
+   | `"retry"` | Go to step 3 directly — do NOT call `prompt_engineer` |
+   | `"wrong_classification"` | Go to step 5a |
+   | `"prompt_too_long"` | Go to step 5b |
+   | `"error"` or incomplete responses | Go to step 5b |
+
+5a. **Wrong classification** (`-890`):
+   - Pass to `prompt_engineer`:
+     - the previous prompt text
+     - each entry from `errors`: `id=<id>, description=<description>, server_message=<server_message>`
+     - instruction: fix the classification logic so these items are classified correctly
    → return to step 2.
-6. Return the final flag when found.
+
+5b. **Prompt too long** (`-920` or `-910`):
+   - Call `count_prompt_tokens(prompt=<current prompt>)` to get the exact token count.
+   - Pass to `prompt_engineer`:
+     - the previous prompt text
+     - current token count and how many tokens over 65 it is
+     - the item description that caused the overflow (from `errors[0].description`)
+     - instruction: shorten the prompt — decide by how much
+   → return to step 2.

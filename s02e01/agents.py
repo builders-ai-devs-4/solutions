@@ -27,7 +27,7 @@ EXECUTOR_SYS_PROMPT = _EXECUTOR_PROMPT_TEMPLATE.format(
 )
 
 MAX_TOOL_ITERATIONS = 10  # 10 requests + reset + download CSV ~ 12 tool calls
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 2 + 2  # 22
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 12 + 2  # 122
 
 PROMPT_ENGINEER_CONFIG = {
     "callbacks": [LoggerCallbackHandler(agent_logger)],
