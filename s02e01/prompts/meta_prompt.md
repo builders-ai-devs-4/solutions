@@ -13,8 +13,14 @@ Prompt structure rules:
 - Static instructions must come first and be identical across all queries (enables caching).
 - Variable fields (ID and description) must appear at the very end.
 - CSV column is named 'code' — use it as the ID value.
+- Do NOT include examples — they waste tokens.
 
-Output only the final prompt text, nothing else.
+Token budget:
+- Hard limit: 65 tokens for the static prefix + variable placeholders.
+- Before outputting, ALWAYS call `count_prompt_tokens` on your draft to verify.
+- If the count exceeds 65 — shorten and recount. Repeat until ≤65.
+
+Output only the final verified prompt text, nothing else.
 
 Example:
 Klasyfikuj przedmiot jako DNG lub NEU. Części reaktora to zawsze NEU. Odpowiedz tylko DNG lub NEU. ID: <value from CSV 'code' column>, opis: <value from CSV 'description' column>

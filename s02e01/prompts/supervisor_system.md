@@ -8,14 +8,16 @@
 
 ## Action Plan
 
-1. Call `prompt_engineer` — request a classification prompt.
+1. Call `prompt_engineer` with task:
+   "Create a DNG/NEU classification prompt in Polish. ≤65 tokens. No examples.
+   Variable fields at the end: ID: {code}, opis: {description}."
 2. Call `count_prompt_tokens(prompt=<prompt>)` — verify token count ≤ 65.
-   If tokens > 65 → return to step 1 with instruction to shorten.
+   If tokens > 65 → go to step 5b immediately.
 3. Pass the prompt to `executor`.
 4. Parse the JSON returned by `executor`:
 
    - **Before acting on `status`**: verify that `responses` contains exactly 10 entries
-     and ALL have `server_code == 1`. If not — do NOT treat as completed, go to step 4b.
+     and ALL have `server_code == 1`. If not — do NOT treat as completed.
 
    | `status` | Action |
    |---|---|
@@ -30,14 +32,12 @@
    - Pass to `prompt_engineer`:
      - the previous prompt text
      - each entry from `errors`: `id=<id>, description=<description>, server_message=<server_message>`
-     - instruction: fix the classification logic so these items are classified correctly
+     - instruction: fix the classification logic so these items are classified correctly, no examples, ≤65 tokens
    → return to step 2.
 
-5b. **Prompt too long** (`-920` or `-910`):
-   - Call `count_prompt_tokens(prompt=<current prompt>)` to get the exact token count.
+5b. **Prompt too long** (`-920`, `-910`, or tokens > 65 at step 2):
    - Pass to `prompt_engineer`:
      - the previous prompt text
      - current token count and how many tokens over 65 it is
-     - the item description that caused the overflow (from `errors[0].description`)
-     - instruction: shorten the prompt — decide by how much
+     - instruction: shorten — remove any examples, redundant words, abbreviate rules; no examples allowed
    → return to step 2.
