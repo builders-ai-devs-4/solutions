@@ -56,7 +56,7 @@ def scan_flag(text: str) -> Optional[str]:
 def save_file_from_url(url: str, folder: str) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
     Path(folder).mkdir(parents=True, exist_ok=True)
-    return save_file(url, folder)
+    return save_file(url, folder, override=True)
 
 @tool
 def get_file_list(folder: str, filter: str = None) -> list[str]:
@@ -116,6 +116,7 @@ def send_to_server(prompt: str) -> dict:
         task=TASK_NAME,
         answer=CategorizationAnswer(prompt=prompt),
     )
+    agent_logger.debug(f"[send_to_server] Prompt \n {prompt}")
     agent_logger.debug(f"[send_to_server] POST {SOLUTION_URL} payload={payload.model_dump()}")
     response = requests.post(SOLUTION_URL, json=payload.model_dump())
     if not response.ok:

@@ -55,6 +55,7 @@ def call_prompt_engineer(task: str) -> str:
     )
     answer = result["messages"][-1].content
     agent_logger.info(f"[prompt_engineer] {answer}")
+    prompt_logger.info(answer)
     return answer
 
 # ── Subagent 2: Executor ──────────────────────────────────────────────────────
@@ -88,9 +89,9 @@ def call_executor(classification_prompt: str) -> str:
     )
     answer = result["messages"][-1].content
     agent_logger.info(f"[executor] {answer}")
-    prompt_logger.info(answer)
+
     return answer
-    
+
 
 # --- Supervisor ---
 

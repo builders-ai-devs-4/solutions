@@ -11,8 +11,8 @@
 ## Action Plan
 
 1. Call `prompt_engineer` — request a classification prompt.
-2. Call `count_prompt_tokens(prompt=<prompt>)` — verify token count is ≤ 100.
-   If tokens > 100, return to step 1 with instruction to shorten.
+2. Call `count_prompt_tokens(prompt=<prompt>)` — verify token count is ≤ 65.
+   If tokens > 65, return to step 1 with instruction to shorten.
 3. Pass the prompt to `executor` — it will run a cycle of 10 queries.
 4. If `executor` returns any of the following:
    - `classification error` → prompt misclassified an item
