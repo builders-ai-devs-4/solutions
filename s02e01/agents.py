@@ -74,23 +74,35 @@ _executor = create_agent(
     name="executor",
 )
 
+from models import ExecutorResult
+
 @tool("executor", description=(
     "Runs the full classification cycle: reset server → download CSV → read rows → "
     "send 10 classification queries → scan each response for a flag {FLG:...}. "
     "Stops immediately if a flag is found or if server returns 'classification error'/'budget exceeded'. "
     "Input: ready-to-use classification prompt. "
-    "Returns server responses or flag if found."
+    "Returns ExecutorResult JSON with status, responses and errors."
 ))
 def call_executor(classification_prompt: str) -> str:
     result = _executor.invoke(
         {"messages": [{"role": "user", "content": classification_prompt}]},
         config=EXECUTOR_CONFIG,
-        
     )
     answer = result["messages"][-1].content
-    agent_logger.info(f"[executor] {answer}")
-
-    return answer
+    
+    try:
+        parsed = ExecutorResult.model_validate_json(answer)
+        agent_logger.info(
+            f"[executor] status={parsed.status} "
+            f"responses={len(parsed.responses)} errors={len(parsed.errors)}"
+        )
+        if parsed.errors:
+            for e in parsed.errors:
+                agent_logger.warning(f"[executor] error id={e.id} code={e.server_code} msg={e.server_message}")
+        return parsed.model_dump_json()  
+    except Exception as exc:
+        agent_logger.warning(f"[executor] Could not parse structured response: {exc}")
+        return answer 
 
 
 # --- Supervisor ---
