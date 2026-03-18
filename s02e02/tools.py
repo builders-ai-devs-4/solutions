@@ -17,20 +17,6 @@ from libs.generic_helpers import read_csv_rows, read_file_base64, read_file_text
 import tiktoken
 from loggers import agent_logger, api_logger
 
-
-class CategorizationAnswer(BaseModel):
-    prompt: str
-
-class CategorizationRequest(BaseModel):
-    apikey: str
-    task: str
-    answer: CategorizationAnswer
-
-class ServerResponse(BaseModel):
-    code: int
-    message: str
-    balance: Optional[float] = None
-
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
 TASK_NAME          = os.environ["TASK_NAME"]
 CATEGORIZATION_URL = os.environ["CATEGORIZATION_URL"]
@@ -78,6 +64,13 @@ def read_file(file_path: str) -> str:
     else:
         return read_file_base64(file_path)
     
+@tool
+def detect_mimetype(file_path: Path) -> str:
+    """Detect the MIME type of a file based on a file type detection library."""
+    info = detect_file_type(file_path)
+    agent_logger.info(f"[detect_mimetype] file={file_path} mime={info.mime_from_name}")
+    return info.mime_from_name
+
 @tool
 def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     """Count the number of tokens in a prompt for budget tracking."""
