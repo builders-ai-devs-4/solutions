@@ -37,6 +37,16 @@ os.environ["MAP_RESET_URL"] = str(map_reset_url)
 INPUT_PATH = task_data_folder / "solved_electricity.png"
 # INPUT_PATH = task_data_folder / "step2_denoised.jpg"
 
+DEBUG_DIR = task_data_folder / "debug"
+
+
+def save_debug(name: str, image: np.ndarray):
+    """Zapisuje obraz pośredni do folderu debug/."""
+    DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+    path = DEBUG_DIR / name
+    cv2.imwrite(str(path), image)
+    print(f"  [debug] zapisano: {path.relative_to(task_data_folder)}")
+
 
 def find_grid_lines(profile, size, min_gap=50, thresh_ratio=0.2):
     """
@@ -74,15 +84,23 @@ def split_grid(gray, margin=4):
 
     Nie wymaga wcześniejszego preprocessingu (adaptiveThreshold, blur itp.)
     – działa bezpośrednio na surowym obrazie szarym.
+
+    Zapisuje obrazy pośrednie do debug/:
+      01_binary.png         – binaryzacja wejścia
+      02_morph_horiz.png    – tylko poziome linie siatki
+      03_morph_vert.png     – tylko pionowe linie siatki
+      04_grid_lines.png     – suma: horiz + vert
+      05_grid_detected.png  – oryginał z naniesionymi wykrytymi liniami
     """
     h, w = gray.shape
 
-    # Binaryzacja: linie siatki są bardzo ciemne (~0-80 na jasnym tle)
+    # 1. Binaryzacja: linie siatki są bardzo ciemne (~0-80 na jasnym tle)
     _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+    save_debug("01_binary.png", binary)
 
-    # Morfologia: kernel w//3 i h//3 jest dłuższy niż 1 komórka (~95px),
-    # ale krótszy niż cała siatka (~286px) – filtruje ścieżki labiryntu,
-    # zachowuje tylko linie separatorów i obramowania.
+    # 2. Morfologia: kernel w//3 i h//3 jest dłuższy niż 1 komórka (~95px),
+    #    ale krótszy niż cała siatka (~286px) – filtruje ścieżki labiryntu,
+    #    zachowuje tylko linie separatorów i obramowania.
     horiz_len = w // 3
     vert_len  = h // 3
 
@@ -91,7 +109,13 @@ def split_grid(gray, margin=4):
 
     horiz = cv2.dilate(cv2.erode(binary, k_h), k_h)
     vert  = cv2.dilate(cv2.erode(binary, k_v), k_v)
+    save_debug("02_morph_horiz.png", horiz)
+    save_debug("03_morph_vert.png", vert)
 
+    grid_lines_img = cv2.add(horiz, vert)
+    save_debug("04_grid_lines.png", grid_lines_img)
+
+    # 3. Profil → wykrycie linii siatki
     row_sum = horiz.sum(axis=1).astype(np.float32) / 255
     col_sum = vert.sum(axis=0).astype(np.float32) / 255
 
@@ -101,7 +125,25 @@ def split_grid(gray, margin=4):
     n_rows = len(row_lines) - 1
     n_cols = len(col_lines) - 1
     print(f"Wykryta siatka: {n_rows} x {n_cols}")
+    print(f"  row_lines: {row_lines}")
+    print(f"  col_lines: {col_lines}")
 
+    # 4. Wizualizacja wykrytych linii na oryginale
+    vis = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    for rl in row_lines:
+        cv2.line(vis, (0, rl), (w, rl), (0, 0, 255), 2)   # czerwone = wiersze
+    for cl in col_lines:
+        cv2.line(vis, (cl, 0), (cl, h), (255, 0, 0), 2)   # niebieskie = kolumny
+    # Ponumeruj komórki
+    for r in range(n_rows):
+        for c in range(n_cols):
+            cx = (col_lines[c] + col_lines[c + 1]) // 2 - 10
+            cy = (row_lines[r] + row_lines[r + 1]) // 2 + 5
+            cv2.putText(vis, f"{r},{c}", (cx, cy),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 180, 0), 1)
+    save_debug("05_grid_detected.png", vis)
+
+    # 5. Wycinanie komórek
     cells = {}
     for r in range(n_rows):
         for c in range(n_cols):
@@ -140,6 +182,8 @@ def find_grid_roi_projection(gray, is_positive=True, margin=5):
 img = cv2.imread(str(INPUT_PATH))
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+save_debug("00_input_gray.png", gray)
+
 # ── ETAP 1: podział na komórki ───────────────────────────────────────────────
 # split_grid działa bezpośrednio na surowym gray – nie potrzeba preprocessingu
 cells, row_lines, col_lines = split_grid(gray)
@@ -166,3 +210,14 @@ cells, _, _ = split_grid(gray)
 for (r, c), cell in cells.items():
     cells_path = cells_dir_path / f"cell_{r}_{c}.png"
     cv2.imwrite(str(cells_path), cell)
+
+# Wynik na dysku:
+# cells/cell_0_0.png  ...  cells/cell_2_2.png
+#
+# Debug na dysku:
+# debug/00_input_gray.png       – wejście (szary)
+# debug/01_binary.png           – binaryzacja (ciemne linie = białe)
+# debug/02_morph_horiz.png      – tylko poziome linie siatki
+# debug/03_morph_vert.png       – tylko pionowe linie siatki
+# debug/04_grid_lines.png       – horiz + vert razem
+# debug/05_grid_detected.png    – oryginał + wykryte linie + numery komórek
