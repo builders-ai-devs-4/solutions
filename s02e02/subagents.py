@@ -25,104 +25,58 @@ PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 
 char_classify_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "vision_interpreter_system.md"
                      ).read_text(encoding="utf-8")
+VALID_CHARS = set("│─└┘┌┐├┤┬┴┼ ")
+_classify_llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=5, temperature=0)
 
-VISION_INTERPRETER_CONFIG = {
-    "callbacks": [LoggerCallbackHandler(agent_logger)],
-    "recursion_limit": _RECURSION_LIMIT,
-}
-
-
-
-_vision_interpreter = create_agent(
-    model="openai:gpt-5.1",
-
-    tools=[detect_mimetype, read_file ],
-    system_prompt=char_classify_prompt,
-    name="vision_interpreter",
-)
-
-@tool("vision_interpreter", description=(
-    "Interprets a wiring diagram cell image and classifies it into a Unicode box-drawing character."))
-def call_vision_interpreter(task: str) -> str:
-    result = _vision_interpreter.invoke(
-        {"messages": [{"role": "user", "content": task}]},
-        config=VISION_INTERPRETER_CONFIG,
-    )
-    answer = result["messages"][-1].content
-    agent_logger.info(f"[vision_interpreter] {answer}")
-    prompt_logger.info(answer)
-    return answer
 
 def classify_cell(image_path: str) -> str:
-    """Classify a single wiring diagram cell image into a Unicode box-drawing character.
-
-    Sends the image to the OpenAI vision model with a structured prompt and
-    few-shot examples. Uses temperature=0 for deterministic output and
-    max_tokens=5 to physically prevent the model from generating any
-    explanation beyond the single character.
-
-    Args:
-        image_path: Path to the cell image file.
-
-    Returns:
-        A single Unicode character from VALID_CHARS, or a space if the
-        cell is empty or the model returned an unexpected value.
-    """
-    llm = ChatOpenAI(
-        model="gpt-5-mini",
-        max_tokens=5,   # single char = 1 token; hard limit prevents any explanation
-        temperature=0,  # deterministic — same image always returns same result
-    )
-    
-    VALID_CHARS = set("│─└┘┌┐├┤┬┴┼ ")
+    # Returns one Unicode box-drawing char for the given cell image.
     image_path = Path(image_path)
     b64 = read_file_base64(image_path)
-    media_type = (detect_file_type(image_path)).mime_from_name
+    media_type = detect_file_type(image_path).mime_from_name
 
-    message = HumanMessage(
-        content=[
-            {"type": "text", "text": char_classify_prompt},
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:{media_type};base64,{b64}",
-                    "detail": "low",  # sufficient for small tiles, saves ~75% image tokens
-                },
-            },
-        ]
-    )
+    message = HumanMessage(content=[
+        {"type": "text", "text": char_classify_prompt},
+        {"type": "image_url", "image_url": {
+            "url": f"data:{media_type};base64,{b64}",
+            "detail": "low",
+        }},
+    ])
 
-    chain = llm | StrOutputParser()
-    result = chain.invoke([message]).strip()
-
-    if result and result[0] in VALID_CHARS:
-        return result[0]
-    return " "
+    result = (_classify_llm | StrOutputParser()).invoke([message]).strip()
+    return result[0] if result and result[0] in VALID_CHARS else " "
 
 
-def classify_grid(
-    cell_paths: list[list[str]],
-) -> list[list[str]]:
-    """Classify all cells in a 2D grid of wiring diagram images.
-
-    Processes cells row by row, left to right. For large grids consider
-    switching to an async implementation to parallelize API calls.
+@tool("classify_grid", description=(
+    "Classifies all cells of the wiring diagram grid. "
+    "Input: path to directory containing cell_{row}_{col}.png images. "
+    "Returns 2D list of Unicode box-drawing characters."
+))
+def classify_grid(cells_dir: str) -> list[list[str]]:
+    """Classify grid cells from a directory of cell_{row}_{col}.png images.
 
     Args:
-        cell_paths: 2D list of file paths, where cell_paths[row][col]
-            points to the image for that grid position.
+        cells_dir: Directory containing cell images from the grid splitter.
 
     Returns:
-        2D list of Unicode characters mirroring the shape of cell_paths.
-
-    Example:
-        grid = classify_grid([
-            ["cell_0_0.jpg", "cell_0_1.jpg"],
-            ["cell_1_0.jpg", "cell_1_1.jpg"],
-        ])
-        # grid → [['┌', '─'], ['│', ' ']]
+        2D list of Unicode characters indexed by [row][col].
     """
+    cells_dir = Path(cells_dir)
+
+    # Parse all cell_R_C.png files and find grid dimensions
+    coords: dict[tuple[int, int], Path] = {}
+    for p in cells_dir.glob("cell_*.png"):
+        _, r, c = p.stem.split("_")
+        coords[(int(r), int(c))] = p
+
+    if not coords:
+        raise ValueError(f"No cell images found in: {cells_dir}")
+
+    n_rows = max(r for r, _ in coords) 
+    n_cols = max(c for _, c in coords)
+
     return [
-        [classify_cell(path) for path in row]
-        for row in cell_paths
+        [classify_cell(str(coords[(r, c)])) for c in range(1, n_cols + 1)]
+        for r in range(1, n_rows + 1)
     ]
+    

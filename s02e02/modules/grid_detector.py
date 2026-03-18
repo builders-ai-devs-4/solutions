@@ -20,27 +20,26 @@ TASK_NAME = os.getenv('TASK_NAME')
 MAP = os.getenv('SOURCE_URL1')
 MAP_RESET = os.getenv('SOURCE_URL2')
 
-current_folder = Path(__file__)
-parent_folder_path = current_folder.parent
-task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
-os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
-os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
+TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
+PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
+DEBUG_DIR = Path(TASK_DATA_FOLDER_PATH) / "debug"
+DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+CELLS_DIR = Path(TASK_DATA_FOLDER_PATH) / "cells"
+CELLS_DIR.mkdir(parents=True, exist_ok=True)
+
 from loggers import agent_logger
 
 
-
-def save_debug(name: str, image: np.ndarray):
-    """Zapisuje obraz pośredni do folderu debug/."""
-    DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-    path = DEBUG_DIR / name
+def save_img(file_path: Path | str, image: np.ndarray):
+    """Saves an image to the specified file path."""
+    path = Path(file_path)
     cv2.imwrite(str(path), image)
-    agent_logger.info(f"[debug] zapisano: {path.relative_to(task_data_folder)}")
 
 def find_grid_lines(profile, size, min_gap=50, thresh_ratio=0.2):
     """
-    Wykrywa linie siatki jako szczyty profilu sumy pikseli.
-    Działa na wyjściu morfologii (horiz/vert linie wyizolowane),
-    gdzie linie siatki tworzą wyraźne piki w profilu.
+    Detects grid lines as peaks in the pixel sum profile.
+    Works on the output of morphology (horiz/vert lines isolated),
+    where grid lines form distinct peaks in the profile.
     """
     threshold = profile.max() * thresh_ratio
     lines = []
@@ -61,36 +60,19 @@ def find_grid_lines(profile, size, min_gap=50, thresh_ratio=0.2):
             filtered.append(l)
     return filtered
 
-
-
-
-def split_grid(gray, margin=4):
-    """
-    Dzieli obraz na komórki siatki.
-
-    Używa morfologii z długim kernelem (w//3, h//3) aby wyizolować
-    wyłącznie linie siatki (przebiegające przez cały wymiar siatki),
-    odrzucając ścieżki labiryntu wewnątrz komórek (krótsze niż 1 komórka).
-
-    Nie wymaga wcześniejszego preprocessingu (adaptiveThreshold, blur itp.)
-    - działa bezpośrednio na surowym obrazie szarym.
-
-    Zapisuje obrazy pośrednie do debug/:
-      01_binary.png         - binaryzacja wejścia
-      02_morph_horiz.png    - tylko poziome linie siatki
-      03_morph_vert.png     - tylko pionowe linie siatki
-      04_grid_lines.png     - suma: horiz + vert
-      05_grid_detected.png  - oryginał z naniesionymi wykrytymi liniami
-    """
+def _img_binarization(gray):
+    
     h, w = gray.shape
-
-    # 1. Binaryzacja: linie siatki są bardzo ciemne (~0-80 na jasnym tle)
+  # 1. Binarization: grid lines are very dark (~0-80 on a light background)
     _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
-    save_debug("01_binary.png", binary)
+    # save_debug("01_binary.png", binary)
+    return binary
 
-    # 2. Morfologia: kernel w//3 i h//3 jest dłuższy niż 1 komórka (~95px),
-    #    ale krótszy niż cała siatka (~286px) - filtruje ścieżki labiryntu,
-    #    zachowuje tylko linie separatorów i obramowania.
+def _img_morphology(gray, binary):
+    h, w = gray.shape
+    # 2. Morphology: kernels w//3 and h//3 are longer than 1 cell (~95px)
+    #    but shorter than the full grid (~286px) — filters out maze paths,
+    #    keeps only separator lines and borders.
     horiz_len = w // 3
     vert_len  = h // 3
 
@@ -99,13 +81,16 @@ def split_grid(gray, margin=4):
 
     horiz = cv2.dilate(cv2.erode(binary, k_h), k_h)
     vert  = cv2.dilate(cv2.erode(binary, k_v), k_v)
-    save_debug("02_morph_horiz.png", horiz)
-    save_debug("03_morph_vert.png", vert)
+    return horiz, vert
 
+def _img_grid_lines(horiz, vert):
     grid_lines_img = cv2.add(horiz, vert)
-    save_debug("04_grid_lines.png", grid_lines_img)
+    # save_debug("04_grid_lines.png", grid_lines_img)
+    return grid_lines_img
 
-    # 3. Profil → wykrycie linii siatki
+def _img_profile(gray, horiz, vert):
+    h, w = gray.shape
+    # 3. Profile → grid line detection
     row_sum = horiz.sum(axis=1).astype(np.float32) / 255
     col_sum = vert.sum(axis=0).astype(np.float32) / 255
 
@@ -114,33 +99,110 @@ def split_grid(gray, margin=4):
 
     n_rows = len(row_lines) - 1
     n_cols = len(col_lines) - 1
-    print(f"Wykryta siatka: {n_rows} x {n_cols}")
-    print(f"  row_lines: {row_lines}")
-    print(f"  col_lines: {col_lines}")
 
-    # 4. Wizualizacja wykrytych linii na oryginale
+    return row_lines, col_lines, n_rows, n_cols
+
+def _img_visualization(gray, row_lines, col_lines):
+    h, w = gray.shape
+    # 4. Visualization of detected grid lines on the original image 
     vis = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
     for rl in row_lines:
-        cv2.line(vis, (0, rl), (w, rl), (0, 0, 255), 2)   # czerwone = wiersze
+        cv2.line(vis, (0, rl), (w, rl), (0, 0, 255), 2)   # red = rows
     for cl in col_lines:
-        cv2.line(vis, (cl, 0), (cl, h), (255, 0, 0), 2)   # niebieskie = kolumny
-    # Ponumeruj komórki
-    for r in range(n_rows):
-        for c in range(n_cols):
+        cv2.line(vis, (cl, 0), (cl, h), (255, 0, 0), 2)   # blue = columns
+    # Number the cells for easier reference in debugging and classification
+    for r in range(len(row_lines) - 1):
+        for c in range(len(col_lines) - 1):
             cx = (col_lines[c] + col_lines[c + 1]) // 2 - 10
             cy = (row_lines[r] + row_lines[r + 1]) // 2 + 5
             cv2.putText(vis, f"{r+1},{c+1}", (cx, cy),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 180, 0), 2)
-    save_debug("05_grid_detected.png", vis)
+    return vis
 
-    # 5. Wycinanie komórek
+def _img_cut_cells(gray, row_lines, col_lines, margin=4):
+     # 5. Crop cells
     cells = {}
-    for r in range(n_rows):
-        for c in range(n_cols):
+    for r in range(len(row_lines) - 1):
+        for c in range(len(col_lines) - 1):
             r0 = row_lines[r] + margin
             r1 = row_lines[r + 1] - margin
             c0 = col_lines[c] + margin
             c1 = col_lines[c + 1] - margin
             cells[(r, c)] = gray[r0:r1, c0:c1]
+    return cells
 
+def split_grid(gray, margin=4):
+    """
+    Splits a grayscale image into grid cells without any prior preprocessing.
+
+    Isolates grid lines using morphological operations (kernel w//3 x h//3) —
+    longer than a single cell but shorter than the full grid — effectively
+    discarding maze paths inside cells.
+    """
+    binary = _img_binarization(gray)
+    img_file = DEBUG_DIR/ "01_binary.png"
+    save_img(img_file, binary)
+    agent_logger.info(f"[grid_detector] saved binary image: {str(img_file)}")
+    
+    horiz, vert = _img_morphology(gray, binary)
+    img_file = DEBUG_DIR/ "02_morph_horiz.png"
+    save_img(img_file, horiz)
+    agent_logger.info(f"[grid_detector] saved horizontal morphology image: {str(img_file)}")
+    img_file = DEBUG_DIR/ "03_morph_vert.png"
+    save_img(img_file, vert)
+    agent_logger.info(f"[grid_detector] saved vertical morphology image: {str(img_file)}")
+    
+    grid_lines_img = _img_grid_lines(horiz, vert)
+    img_file = DEBUG_DIR/ "04_grid_lines.png"
+    save_img(img_file, grid_lines_img)
+    agent_logger.info(f"[grid_detector] saved grid lines image: {str(img_file)}")
+    
+    row_lines, col_lines, n_rows, n_cols = _img_profile(gray, horiz, vert)
+        
+    agent_logger.info(f"[grid_detector] detected grid: {n_rows} x {n_cols}")
+    agent_logger.info(f"[grid_detector] row_lines: {row_lines}")
+    agent_logger.info(f"[grid_detector] col_lines: {col_lines}")
+    
+    vis = _img_visualization(gray, row_lines, col_lines)
+    img_file = TASK_DATA_FOLDER_PATH/ "05_grid_detected.png"
+    save_img(img_file, vis)
+    agent_logger.info(f"[grid_detector] saved grid visualization image: {str(img_file)}")
+    
+    cells = _img_cut_cells(gray, row_lines, col_lines, margin)
     return cells, row_lines, col_lines
+    
+
+def change_img_to_gray(image_path: Path | str) -> np.ndarray:
+    """Reads an image from the given path and converts it to grayscale."""
+    img = cv2.imread(str(image_path))
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return gray
+
+def shape_analysis(cell):
+    # Invert only for analysis - keep original unchanged
+    cell_inv = cv2.bitwise_not(cell)
+    # Now: white = maze path, black = cell background
+    # Skeletonization, findContours, shape classification...
+    contours, _ = cv2.findContours(
+        cell_inv,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+    return contours
+
+
+def get_grid_cells(image_path: str):
+    """Main function to get grid cells as a dict {(row, col): cell_image_array}."""
+    image_path = Path(image_path)
+    gray = change_img_to_gray(image_path)
+    
+    img_file = DEBUG_DIR/ "00_input_gray.png"
+    save_img(img_file, gray)
+    agent_logger.info(f"[grid_detector] saved gray image: {str(img_file)}")
+    cells, row_lines, col_lines = split_grid(gray)
+
+    for (r, c), cell in cells.items():
+        cells_path = CELLS_DIR / f"cell_{r+1}_{c+1}.png"
+        cv2.imwrite(str(cells_path), cell)
+        agent_logger.info(f"[grid_detector] saved cell image: {str(cells_path)}")
+    return str(CELLS_DIR)

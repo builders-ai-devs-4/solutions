@@ -23,7 +23,8 @@ MAP_RESET = os.getenv('SOURCE_URL2')
 current_folder = Path(__file__)
 parent_folder_path  = current_folder.parent
 task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
-os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
+# os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
+os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
 
 map_template = Template(MAP)
@@ -33,7 +34,6 @@ os.environ["MAP_URL"] = str(map_url)
 map_reset_template = Template(MAP_RESET)
 map_reset_url = map_reset_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["MAP_RESET_URL"] = str(map_reset_url)
-
 
 from tools import encode_prompt
 from loggers import LoggerCallbackHandler, agent_logger

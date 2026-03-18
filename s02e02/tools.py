@@ -7,8 +7,9 @@ import os
 from pydantic import BaseModel, Field
 import requests
 from langchain_core.callbacks import BaseCallbackHandler
-
+from modules.grid_detector import get_grid_cells
 from modules.tiktoken import encode_prompt
+from modules.models import AnswerModel, RotateCellInput, SolutionUrlRequest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -19,8 +20,11 @@ from loggers import agent_logger, api_logger
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
 TASK_NAME          = os.environ["TASK_NAME"]
-CATEGORIZATION_URL = os.environ["CATEGORIZATION_URL"]
 SOLUTION_URL        = os.environ["SOLUTION_URL"]
+MAP_URL             = os.environ["MAP_URL"]
+MAP_RESET_URL       = os.environ["MAP_RESET_URL"]
+DATA_FOLDER_PATH    = os.environ["DATA_FOLDER_PATH"]
+PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 
@@ -40,6 +44,29 @@ def save_file_from_url(url: str, folder: str) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
     Path(folder).mkdir(parents=True, exist_ok=True)
     return save_file(url, folder, override=True)
+
+@tool("rotate_cell",
+      description="Rotates a single grid cell 90 degrees clockwise. Use col and row index (0-2).",
+      args_schema=RotateCellInput)
+def rotate_cell(col: int, row: int) -> dict:
+    payload = SolutionUrlRequest(
+        apikey=AI_DEVS_SECRET,
+        task=TASK_NAME,
+        answer=AnswerModel(rotate=f"{col}x{row}")
+    )
+    response = requests.post(
+        SOLUTION_URL,
+        json=payload.model_dump()
+    )
+    agent_logger.info(f"[rotate_cell] col={col} row={row} → {payload.answer.rotate}")
+    return response.json()
+
+@tool
+def reset_map():
+    """Sends a request to reset the map to its initial state."""
+    response = requests.get(MAP_RESET_URL)
+    agent_logger.info(f"[reset_map] Map reset response: {response.status_code}")
+    return response.status_code == 200
 
 @tool
 def get_file_list(folder: str, filter: str = None) -> list[str]:
@@ -77,3 +104,8 @@ def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     _, count = encode_prompt(prompt, model_name)
     agent_logger.info(f"[count_prompt_tokens] model={model_name} tokens={count}")
     return count
+
+@tool
+def get_grid_cells_frome_image(image_path: str) -> str:
+    """Detect grid lines in the wiring diagram image, split it into cells, save them to disk, and return the folder path."""
+    return get_grid_cells(image_path)
