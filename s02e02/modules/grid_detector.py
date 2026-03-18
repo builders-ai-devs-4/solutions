@@ -65,7 +65,6 @@ def _img_binarization(gray):
     h, w = gray.shape
   # 1. Binarization: grid lines are very dark (~0-80 on a light background)
     _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
-    # save_debug("01_binary.png", binary)
     return binary
 
 def _img_morphology(gray, binary):
@@ -85,7 +84,6 @@ def _img_morphology(gray, binary):
 
 def _img_grid_lines(horiz, vert):
     grid_lines_img = cv2.add(horiz, vert)
-    # save_debug("04_grid_lines.png", grid_lines_img)
     return grid_lines_img
 
 def _img_profile(gray, horiz, vert):
