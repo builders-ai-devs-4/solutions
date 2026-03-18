@@ -4,8 +4,8 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
-from subagents import _RECURSION_LIMIT, call_vision_interpreter
-from tools import read_file, read_csv, save_file_from_url, scan_flag, send_to_server, count_prompt_tokens
+from subagents import _RECURSION_LIMIT, classify_grid
+from tools import detect_mimetype, detect_mimetype, get_file_list, get_grid_cells_frome_image, read_file, read_csv, reset_map, rotate_cell, save_file_from_url, scan_flag, send_to_server, count_prompt_tokens
 from loggers import LoggerCallbackHandler, agent_logger,get_logger, _log_dir
 from langchain_core.callbacks import BaseCallbackHandler
 
@@ -13,7 +13,7 @@ prompt_logger = get_logger("prompt", log_dir=_log_dir(), log_stem="prompt")
 
 MAP_URL = os.environ["MAP_URL"]
 MAP_RESET_URL = os.environ["MAP_RESET_URL"]
-DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
+TASK_DATA_FOLDER_PATH   = os.environ["TASK_DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 
 SUPERVISOR_SYS_PROMPT = (Path(PARENT_FOLDER_PATH) / "prompts" / "supervisor_system.md"
@@ -27,7 +27,17 @@ SUPERVISOR_CONFIG = {
 
 supervisor = create_agent(
     model="openai:gpt-5-mini",
-    tools=[ call_vision_interpreter, count_prompt_tokens],
+    tools=[
+        classify_grid,
+        scan_flag,
+        save_file_from_url,
+        rotate_cell,
+        reset_map,
+        get_file_list,
+        read_file,
+        detect_mimetype,
+        get_grid_cells_frome_image,
+    ],
     system_prompt=SUPERVISOR_SYS_PROMPT,
     name="supervisor",
     checkpointer=InMemorySaver(),

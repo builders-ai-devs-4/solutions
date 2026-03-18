@@ -7,7 +7,6 @@ from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from libs.filetype_detect import detect_file_type
 from libs.generic_helpers import read_file_base64
-from tools import detect_mimetype, read_file, read_csv, save_file_from_url, scan_flag, send_to_server, count_prompt_tokens
 from loggers import LoggerCallbackHandler, agent_logger,get_logger, _log_dir
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.output_parsers import StrOutputParser
@@ -20,10 +19,9 @@ _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 12 + 2  # 122
 
 MAP_URL = os.environ["MAP_URL"]
 MAP_RESET_URL = os.environ["MAP_RESET_URL"]
-DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 
-char_classify_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "vision_interpreter_system.md"
+char_classify_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "char_classify_prompt.md"
                      ).read_text(encoding="utf-8")
 VALID_CHARS = set("│─└┘┌┐├┤┬┴┼ ")
 _classify_llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=5, temperature=0)

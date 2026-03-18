@@ -46,7 +46,14 @@ if __name__ == "__main__":
     result = supervisor.invoke(
         {"messages": 
             [{"role": "user", 
-              "content": "Create a DNG/NEU classification prompt, run the cycle and return the result."
+              "content": (
+                "Solve the 3x3 electrical wiring puzzle. "
+                "Download the current board image from MAP_URL, classify the grid, "
+                "compare it with the target state from the target image in TASK_DATA_FOLDER_PATH, "
+                "plan the required rotations and execute them. "
+                "After each rotation check the server response for a flag {FLG:...}. "
+                "Verify the board after every batch of rotations and repeat until the flag is received."
+            )
               }]},
         config=SUPERVISOR_CONFIG,
     )
