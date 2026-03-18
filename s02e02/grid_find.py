@@ -139,8 +139,8 @@ def split_grid(gray, margin=4):
         for c in range(n_cols):
             cx = (col_lines[c] + col_lines[c + 1]) // 2 - 10
             cy = (row_lines[r] + row_lines[r + 1]) // 2 + 5
-            cv2.putText(vis, f"{r},{c}", (cx, cy),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 180, 0), 1)
+            cv2.putText(vis, f"{r+1},{c+1}", (cx, cy),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 180, 0), 2)
     save_debug("05_grid_detected.png", vis)
 
     # 5. Wycinanie komórek
@@ -202,13 +202,12 @@ for (row, col), cell in cells.items():
     )
 
 # ── ETAP 3: zapis komórek na dysk ────────────────────────────────────────────
+cells, _, _ = split_grid(gray)
 cells_dir_path = task_data_folder / "cells"
 cells_dir_path.mkdir(parents=True, exist_ok=True)
 
-cells, _, _ = split_grid(gray)
-
 for (r, c), cell in cells.items():
-    cells_path = cells_dir_path / f"cell_{r}_{c}.png"
+    cells_path = cells_dir_path / f"cell_{r+1}_{c+1}.png"
     cv2.imwrite(str(cells_path), cell)
 
 # Wynik na dysku:

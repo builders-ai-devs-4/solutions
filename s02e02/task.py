@@ -34,4 +34,22 @@ map_reset_template = Template(MAP_RESET)
 map_reset_url = map_reset_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["MAP_RESET_URL"] = str(map_reset_url)
 
+
+from tools import encode_prompt
+from loggers import LoggerCallbackHandler, agent_logger
+from supervisor_agent import SUPERVISOR_CONFIG, supervisor
+
+
+if __name__ == "__main__":
+    
+    agent_logger.info(f"[task] Starting task: {TASK_NAME}")
+    result = supervisor.invoke(
+        {"messages": 
+            [{"role": "user", 
+              "content": "Create a DNG/NEU classification prompt, run the cycle and return the result."
+              }]},
+        config=SUPERVISOR_CONFIG,
+    )
+    agent_logger.info(f"[supervisor] {result['messages'][-1].content}")
+    
 save_file(map_url, task_data_folder, override=True)

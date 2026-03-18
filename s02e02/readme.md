@@ -16,6 +16,7 @@ pip install python-dotenv
 pip install opencv-python pillow pytesseract
 pip install matplotlib
 pip install scipy
+pip install tiktoken
 ```
 
 or
