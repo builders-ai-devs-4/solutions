@@ -83,14 +83,14 @@ def split_grid(gray, margin=4):
     odrzucając ścieżki labiryntu wewnątrz komórek (krótsze niż 1 komórka).
 
     Nie wymaga wcześniejszego preprocessingu (adaptiveThreshold, blur itp.)
-    – działa bezpośrednio na surowym obrazie szarym.
+    - działa bezpośrednio na surowym obrazie szarym.
 
     Zapisuje obrazy pośrednie do debug/:
-      01_binary.png         – binaryzacja wejścia
-      02_morph_horiz.png    – tylko poziome linie siatki
-      03_morph_vert.png     – tylko pionowe linie siatki
-      04_grid_lines.png     – suma: horiz + vert
-      05_grid_detected.png  – oryginał z naniesionymi wykrytymi liniami
+      01_binary.png         - binaryzacja wejścia
+      02_morph_horiz.png    - tylko poziome linie siatki
+      03_morph_vert.png     - tylko pionowe linie siatki
+      04_grid_lines.png     - suma: horiz + vert
+      05_grid_detected.png  - oryginał z naniesionymi wykrytymi liniami
     """
     h, w = gray.shape
 
@@ -99,7 +99,7 @@ def split_grid(gray, margin=4):
     save_debug("01_binary.png", binary)
 
     # 2. Morfologia: kernel w//3 i h//3 jest dłuższy niż 1 komórka (~95px),
-    #    ale krótszy niż cała siatka (~286px) – filtruje ścieżki labiryntu,
+    #    ale krótszy niż cała siatka (~286px) - filtruje ścieżki labiryntu,
     #    zachowuje tylko linie separatorów i obramowania.
     horiz_len = w // 3
     vert_len  = h // 3
@@ -185,13 +185,13 @@ gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 save_debug("00_input_gray.png", gray)
 
 # ── ETAP 1: podział na komórki ───────────────────────────────────────────────
-# split_grid działa bezpośrednio na surowym gray – nie potrzeba preprocessingu
+# split_grid działa bezpośrednio na surowym gray - nie potrzeba preprocessingu
 cells, row_lines, col_lines = split_grid(gray)
 # cells = { (0,0): array, (0,1): array, ... (2,2): array }
 
 # ── ETAP 2: analiza kształtu ─────────────────────────────────────────────────
 for (row, col), cell in cells.items():
-    # Odwróć tylko do analizy – oryginał zostawiasz niezmieniony
+    # Odwróć tylko do analizy - oryginał zostawiasz niezmieniony
     cell_inv = cv2.bitwise_not(cell)
     # Teraz: białe = ścieżka labiryntu, czarne = tło komórki
     # Skeletonizacja, findContours, klasyfikacja kształtu...
@@ -215,9 +215,9 @@ for (r, c), cell in cells.items():
 # cells/cell_0_0.png  ...  cells/cell_2_2.png
 #
 # Debug na dysku:
-# debug/00_input_gray.png       – wejście (szary)
-# debug/01_binary.png           – binaryzacja (ciemne linie = białe)
-# debug/02_morph_horiz.png      – tylko poziome linie siatki
-# debug/03_morph_vert.png       – tylko pionowe linie siatki
-# debug/04_grid_lines.png       – horiz + vert razem
-# debug/05_grid_detected.png    – oryginał + wykryte linie + numery komórek
+# debug/00_input_gray.png       - wejście (szary)
+# debug/01_binary.png           - binaryzacja (ciemne linie = białe)
+# debug/02_morph_horiz.png      - tylko poziome linie siatki
+# debug/03_morph_vert.png       - tylko pionowe linie siatki
+# debug/04_grid_lines.png       - horiz + vert razem
+# debug/05_grid_detected.png    - oryginał + wykryte linie + numery komórek
