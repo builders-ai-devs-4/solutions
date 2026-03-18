@@ -4,7 +4,7 @@
 winget install -e --id UB-Mannheim.TesseractOCR -h --accept-package-agreements --accept-source-agreements
 
 # 2. Add Tesseract directory to user PATH
-$dir = "C:\\Program Files\\Tesseract-OCR\\"
+$dir = "C:\Program Files\Tesseract-OCR\"
 
 $current = [System.Environment]::GetEnvironmentVariable(
     "Path",
@@ -27,4 +27,4 @@ if ($current -notlike "*$dir*") {
 python -m pip install --upgrade pip
 python -m pip install --upgrade pillow pytesseract opencv-python
 
-Write-Host "Instalacja Tesseract + Pillow + pytesseract + OpenCV zakończona." -ForegroundColor Green
+Write-Host "Instalacja Tesseract + Pillow + pytesseract + OpenCV zakonczona." -ForegroundColor Green
