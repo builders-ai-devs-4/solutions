@@ -22,10 +22,12 @@ MAP_RESET = os.getenv('SOURCE_URL2')
 
 current_folder = Path(__file__)
 parent_folder_path  = current_folder.parent
+date_folder_path = parent_folder_path / DATA_FOLDER
 task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
 # os.environ["DATA_FOLDER_PATH"] = str(task_data_folder)
 os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
+os.environ["DATA_FOLDER_PATH"] = str(date_folder_path)
 
 map_template = Template(MAP)
 map_url = map_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
