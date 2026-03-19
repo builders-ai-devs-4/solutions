@@ -58,6 +58,19 @@ rotation only changes its orientation. You CANNOT change one shape into another
 | ┼        | N, S, W, E  | Cross                |
 | (space)  | none        | Empty / no cable     |
 
+### Shape groups
+
+Each cell belongs to exactly one shape group. The group NEVER changes —
+only the orientation within the group changes through rotation.
+
+| Group      | Members             |
+|------------|---------------------|
+| straight   | │ ─                 |
+| corner     | └ ┌ ┐ ┘             |
+| tjunction  | ├ ┬ ┤ ┴             |
+| cross      | ┼                   |
+| empty      | (space)             |
+
 ### Rotation cycles (90° clockwise)
 
 Each 90° CW rotation maps edges: N→E, E→S, S→W, W→N.
@@ -87,7 +100,7 @@ Key rules:
 
 ### How to compute the required number of rotations
 
-1. Identify the current symbol in the cell from classify_grid output.
+1. Identify the current symbol in the cell from current_grid (in-memory).
 2. Identify which orientation of that symbol provides the edges you need.
 3. Count how many 90° CW steps separate the current from the desired
    orientation using the table above.
@@ -121,12 +134,12 @@ whether stations appear reachable.
 
 ### Rule 3 — Grid boundary exits (open vs closed)
 
-| Boundary              | Cable may exit? | Reason                           |
-|-----------------------|-----------------|----------------------------------|
-| West side of col 1    | ✅ optional     | Source input — always valid      |
+| Boundary              | Cable may exit? | Reason                               |
+|-----------------------|-----------------|--------------------------------------|
+| West side of col 1    | ✅ optional     | Source input — always valid          |
 | East side of col 3    | ✅ required     | PWR output — all 3 rows must connect |
-| North side of row 1   | ❌ FORBIDDEN    | Nothing is connected here        |
-| South side of row 3   | ❌ FORBIDDEN    | Nothing is connected here        |
+| North side of row 1   | ❌ FORBIDDEN    | Nothing is connected here            |
+| South side of row 3   | ❌ FORBIDDEN    | Nothing is connected here            |
 
 FORBIDDEN means: if any cell in row 1 has a North (N) edge, or any cell in
 row 3 has a South (S) edge, the configuration is INVALID.
@@ -180,18 +193,21 @@ Sources and power stations:
 - P1 on the EAST side of cell 1x3
 - P2 on the EAST side of cell 2x3
 
-### Step 1 — classify_grid output (initial state)
+### Step 1 — classify_grid output (initial state, after reset)
 
 Row 1: S1 | ┤  ─  ├ | P1
 Row 2: S2 | ┤  ─  ├ | P2
 
 Meaning:
-- 1x1 = ┤ (N, S, W)
-- 1x2 = ─ (W, E)
-- 1x3 = ├ (N, S, E)
-- 2x1 = ┤ (N, S, W)
-- 2x2 = ─ (W, E)
-- 2x3 = ├ (N, S, E)
+- 1x1 = ┤ (N, S, W) — group: tjunction
+- 1x2 = ─ (W, E)    — group: straight
+- 1x3 = ├ (N, S, E) — group: tjunction
+- 2x1 = ┤ (N, S, W) — group: tjunction
+- 2x2 = ─ (W, E)    — group: straight
+- 2x3 = ├ (N, S, E) — group: tjunction
+
+This is the ONLY classify_grid call for this reset cycle.
+All further state tracking uses apply_rotation_to_grid.
 
 ### Step 2 — boundary check (Rule 3)
 
@@ -205,10 +221,8 @@ Row 2 South edges (bottom row):
 - 2x2 = ─ has no S edge ✓
 - 2x3 = ├ has S edge → FORBIDDEN ✗
 
-Forbidden violations found: 1x1(N), 1x3(N), 2x1(S), 2x3(S).
-These cells must be rotated to eliminate the forbidden edges.
-Note: eliminating the forbidden edge is a hard constraint — it overrides
-path-routing preferences.
+Forbidden violations: 1x1(N), 1x3(N), 2x1(S), 2x3(S).
+These must be fixed. Eliminating forbidden edges is a hard constraint.
 
 ### Step 3 — check failed history
 
@@ -263,17 +277,20 @@ Cross-check against get_failed_plans(): no conflicts. Proceed.
 8. rotate_cell(col=3, row=2) → scan_flag → apply_rotation_to_grid
 
 After each rotate_cell: immediately call scan_flag. If {FLG:...} → STOP.
+Never re-download or re-classify the board during execution.
 
-### Step 7 — solved state
+### Step 7 — solved state (in-memory verification)
+
+In-memory current_grid after all rotations:
 
 Row 1: S1 | ┬  ─  ┬ | P1
 Row 2: S2 | ┴  ─  ┴ | P2
 
-Boundary check:
+Boundary check on current_grid:
 - Row 1 North: ┬ no N ✓, ─ no N ✓, ┬ no N ✓
 - Row 2 South: ┴ no S ✓, ─ no S ✓, ┴ no S ✓
 
-Path trace:
+Path trace on current_grid:
 - S1 → 1x1 (┬, W ✓) → East → 1x2 (─, W ✓ E ✓) → East → 1x3 (┬, W ✓) → P1 ✓
 - S2 → 2x1 (┴, W ✓) → East → 2x2 (─, W ✓ E ✓) → East → 2x3 (┴, W ✓) → P2 ✓
 
@@ -282,7 +299,7 @@ Internal consistency:
 - 1x2 (─) has no S. 2x2 (─) has no N. No conflict. ✓
 - 1x3 (┬) has S. 2x3 (┴) has N. S ↔ N match. ✓
 
-All rules satisfied. Server returns {FLG:...} → puzzle solved.
+All rules satisfied. Server returned {FLG:...} during execution → puzzle solved.
 
 ## Classification error handling
 
@@ -317,7 +334,7 @@ Rules when "?" is present:
   Applies a single 90° CW rotation to an in-memory grid state.
   Updates the symbol at (row, col) according to rotation rules.
   Returns the updated grid as JSON string.
-  Use this INSTEAD of re-downloading the image after every rotation.
+  This is the ONLY way to update grid state between resets.
 
 - rotate_cell(col: int, row: int) -> dict
   Rotates a single grid cell 90 degrees clockwise on the server.
@@ -372,25 +389,30 @@ not a leftover state from a previous run.
 5. Serialize current_grid to a JSON string. Store it as initial_grid_json
    for use in remember_failed_plan() later.
 
+CRITICAL: classify_grid is called ONLY HERE — exactly once per reset cycle.
+Never call save_file_from_url, get_grid_cells_frome_image or classify_grid
+again until the next reset_map(). The shape group of every cell is now
+fixed for this entire cycle and cannot change.
+
 ### Phase 2 — Check failed history
 
 1. Call get_failed_plans() immediately after classify_grid.
 2. Compare current initial_grid_json with stored failed plan initial states.
    - If a match is found → note which rotation plans were already tried
-     from this state. You MUST design a different plan in Phase 4.
+     from this state. You MUST design a different plan in Phase 5.
    - If no match → this is a fresh state, proceed normally.
 
-### Phase 3 — Boundary check (Rule 3)
+### Phase 3 — Boundary check
 
-Perform this check BEFORE any connectivity analysis.
+Perform this check on current_grid BEFORE connectivity analysis.
 
 Check the following cells for FORBIDDEN edges:
 
-| Cell | Forbidden edge | Why                         |
-|------|----------------|-----------------------------|
-| 1x1  | North (N)      | Top of grid — nothing above |
-| 1x2  | North (N)      | Top of grid — nothing above |
-| 1x3  | North (N)      | Top of grid — nothing above |
+| Cell | Forbidden edge | Why                            |
+|------|----------------|--------------------------------|
+| 1x1  | North (N)      | Top of grid — nothing above    |
+| 1x2  | North (N)      | Top of grid — nothing above    |
+| 1x3  | North (N)      | Top of grid — nothing above    |
 | 3x1  | South (S)      | Bottom of grid — nothing below |
 | 3x2  | South (S)      | Bottom of grid — nothing below |
 | 3x3  | South (S)      | Bottom of grid — nothing below |
@@ -415,8 +437,8 @@ If no forbidden edges are found → proceed directly to Phase 4.
      PWR7264PL (east of 3x3).
 3. Determine whether all three stations are reachable from at least one
    source via valid, consistent connections.
-   - If YES and no forbidden edges → board is logically solved; proceed
-     to Phase 5 to execute zero rotations and wait for flag on next rotate.
+   - If YES and no forbidden edges → board is logically solved;
+     proceed to Phase 5 with an empty rotation plan and wait for flag.
    - If NO or forbidden edges exist → identify misaligned cells and
      required edge changes.
 
@@ -441,28 +463,28 @@ For each planned rotation in order:
 2. Immediately call scan_flag(response_text).
    - If {FLG:...} found → STOP immediately, report the flag as final answer.
 3. Call apply_rotation_to_grid(current_grid_json, col, row) to update
-   your in-memory grid state without re-downloading the image.
+   your in-memory grid. This is the ONLY way to track grid state.
 4. Continue to next planned rotation.
 
-Re-download and re-classify the full board ONLY:
-- After completing the full rotation plan (all planned rotations done), OR
-- Every 9 rotations as a safety check, OR
-- If symbols look inconsistent after several apply_rotation_to_grid calls.
+Never re-download or re-classify the board during execution.
+apply_rotation_to_grid is the single source of truth for grid state
+between resets.
 
-Do NOT call save_file_from_url or classify_grid after every single rotation.
+### Phase 7 — Verify on in-memory grid
 
-### Phase 7 — Re-classify and verify
-
-After completing the full rotation plan:
-1. Download fresh board: save_file_from_url → get_grid_cells_frome_image
-   → classify_grid → updated current_grid.
-2. Repeat Phase 3 (boundary check) and Phase 4 (connectivity).
-3. If board passes all rules but no flag was received:
+After executing all planned rotations (and no flag received):
+1. Recompute connectivity using current_grid (maintained by
+   apply_rotation_to_grid). Do NOT re-download the board image.
+2. Repeat Phase 3 (boundary check) on current_grid.
+3. If all rules pass but no flag was received:
+   - The server rejected this configuration.
    - Call remember_failed_plan(initial_grid_json, plan_json, reason).
-   - Call reset_map() and restart from Phase 1.
-4. If board still has violations:
+   - Call reset_map() → board returns to initial state.
+   - Go back to Phase 1 to re-classify from the fresh image.
+4. If rules still show violations in current_grid:
    - Call remember_failed_plan(initial_grid_json, plan_json, reason).
-   - Call reset_map() and restart from Phase 1.
+   - Call reset_map().
+   - Go back to Phase 1 to re-classify from the fresh image.
 
 ### Phase 8 — Escape if stuck
 
@@ -477,14 +499,21 @@ initial grid state:
 
 ## Efficiency and safety rules
 
+- classify_grid is called EXACTLY ONCE per reset cycle — immediately after
+  reset_map() and before any rotations. Never call it again mid-plan.
+- All grid state between resets is tracked exclusively via
+  apply_rotation_to_grid. Never re-download the board image mid-plan.
+- After reset_map() the board returns to its initial state — always
+  re-classify from scratch to get a fresh current_grid.
+- The shape group of each cell (straight / corner / tjunction / cross)
+  is determined at classification time and is immutable for the entire
+  reset cycle. Rotation only changes orientation within the group.
+- Perform the boundary check (Phase 3) before connectivity analysis
+  (Phase 4) on every classify cycle — forbidden edges are always
+  a hard blocker.
 - Always treat scan_flag on rotate_cell responses as the primary stop
   condition. Never stop only because the grid "looks correct".
-- Perform the boundary check (Phase 3) before connectivity analysis (Phase 4)
-  on every classify cycle — forbidden edges are always a hard blocker.
 - Use at most 3 rotations per cell in a single plan.
-- Re-classify from the live board image after each full rotation plan,
-  not after every individual rotation — use apply_rotation_to_grid
-  for in-memory tracking between re-classifications.
 - Call get_failed_plans() as the FIRST action after every classify_grid
   call, before planning any rotations.
 - Call remember_failed_plan() BEFORE every reset_map() call — never
@@ -493,8 +522,6 @@ initial grid state:
   the same initial grid state.
 - Never call scan_flag on classify_grid, reset_map, apply_rotation_to_grid
   or any other tool output — only on rotate_cell responses.
-- Never call reset_map() without first calling remember_failed_plan()
-  to preserve the attempt history.
 
 ## Final output
 
