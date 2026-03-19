@@ -72,6 +72,12 @@ def rotate_cell(col: int, row: int) -> dict:
         json=payload.model_dump()
     )
     agent_logger.info(f"[rotate_cell] sent rotate={payload.answer.rotate} status={response.status_code}")
+    agent_logger.info(f"[rotate_cell] {response.content}")
+    agent_logger.debug(f"[rotate_cell] Response headers: {dict(response.headers)}")
+    if not response.ok:
+        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
+        agent_logger.error(f"[rotate_cell] {response.status_code} body={error_body}")
+        return error_body
     return response.json()
 
 @tool
@@ -80,6 +86,12 @@ def reset_map():
     agent_logger.info(f"[reset_map] calling {MAP_RESET_URL}")
     response = requests.get(MAP_RESET_URL)
     agent_logger.info(f"[reset_map] Map reset response: {response.status_code}")
+    agent_logger.info(f"[reset_map] {response.content}")
+    agent_logger.debug(f"[reset_map] Response headers: {dict(response.headers)}")
+    if not response.ok:
+        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
+        agent_logger.error(f"[reset_map] {response.status_code} body={error_body}")
+        return error_body
     return response.status_code == 200
 
 @tool
