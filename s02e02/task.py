@@ -48,15 +48,26 @@ if __name__ == "__main__":
     result = supervisor.invoke(
         {"messages": 
             [{"role": "user",
-                        "content" : (
-                            f"Solve the 3x3 electrical wiring puzzle.\n"
-                            f"Board URL: {map_url}\n"
-                            f"Working folder: {task_data_folder}\n\n"
-                            f"You have a reset_map() tool that returns the board to its initial state.\n"
-                            f"Use it if your classification or reasoning seems inconsistent, or if the "
-                            f"board appears solved but no flag is returned after several attempts.\n"
-                            f"Follow the system instructions and start now."
-                        )
+                "content" : (
+                    f"Solve the 3×3 electrical wiring puzzle.\n"
+                    f"Board URL: {map_url}\n"
+                    f"Working folder: {task_data_folder}\n\n"
+                    f"The board is a 3×3 grid of connector symbols. "
+                    f"Your goal is to rotate cells until all three power stations "
+                    f"(PWR6132PL, PWR1593PL, PWR7264PL) are powered from the emergency "
+                    f"source on the left side of cell 3x1.\n\n"
+                    f"You do NOT have any separate target image. The correct configuration "
+                    f"is defined only by the wiring rules and by the server returning a "
+                    f"flag {{FLG:...}} when the puzzle is solved.\n\n"
+                    f"You have the following tools available: save_file_from_url, "
+                    f"get_grid_cells_frome_image, classify_grid, rotate_cell, scan_flag, "
+                    f"reset_map, get_file_list, read_file.\n\n"
+                    f"Follow the system instructions carefully, analyse the current board, "
+                    f"plan and execute rotations, re-classify after changes, and use "
+                    f"reset_map() if your reasoning or classification seems inconsistent.\n"
+                    f"Stop ONLY when you receive a flag from the server.\n\n"
+                    f"Start now."
+                )
 
               }]},
         config=SUPERVISOR_CONFIG,
