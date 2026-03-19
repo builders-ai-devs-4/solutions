@@ -43,18 +43,3 @@ supervisor = create_agent(
     name="supervisor",
     checkpointer=InMemorySaver(),
 )
-
-# SupervisorAgent (LangGraph StateGraph)
-# │
-# ├── Tools (deterministyczne):
-# │   ├── fetch_map()          → GET /api/map → raw grid data
-# │   ├── rotate_cell(r, c)    → POST /api/rotate?row=r&col=c
-# │   └── save_cell_image(r, c, img)
-# │
-# ├── SubAgent: VisionInterpreter
-# │   └── Wejście: obraz komórki 
-# │   └── Wyjście: {"connections": ["N", "E"], "shape": "L-bend"}
-# │
-# └── SubAgent: RotationSolver
-#     └── Wejście: pełny stan siatki (connection map)
-#     └── Wyjście: lista kroków [(r,c, n_rotations), ...]

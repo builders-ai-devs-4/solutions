@@ -49,10 +49,10 @@ if __name__ == "__main__":
         {"messages": 
             [{"role": "user",
                 "content" : (
-                    f"Solve the 3×3 electrical wiring puzzle.\n"
+                    f"Solve the 3x3 electrical wiring puzzle.\n"
                     f"Board URL: {map_url}\n"
                     f"Working folder: {task_data_folder}\n\n"
-                    f"The board is a 3×3 grid of connector symbols. "
+                    f"The board is a 3x3 grid of connector symbols. "
                     f"Your goal is to rotate cells until all three power stations "
                     f"(PWR6132PL, PWR1593PL, PWR7264PL) are powered from the emergency "
                     f"source on the left side of cell 3x1.\n\n"

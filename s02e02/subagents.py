@@ -23,7 +23,7 @@ PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 
 char_classify_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "char_classify_prompt.md"
                      ).read_text(encoding="utf-8")
-VALID_CHARS = set("│─└┘┌┐├┤┬┴┼ ")
+VALID_CHARS = set("│─└┘┌┐├┤┬┴┼")
 _classify_llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=5, temperature=0)
 
 
@@ -37,12 +37,25 @@ def classify_cell(image_path: str) -> str:
         {"type": "text", "text": char_classify_prompt},
         {"type": "image_url", "image_url": {
             "url": f"data:{media_type};base64,{b64}",
-            "detail": "low",
+            "detail": "high",
         }},
     ])
 
     result = (_classify_llm | StrOutputParser()).invoke([message]).strip()
-    char = result[0] if result and result[0] in VALID_CHARS else " "
+
+    if not result:
+        agent_logger.warning(f"[classify_cell] {image_path.name} -> EMPTY response")
+        return "?"
+
+    char = result[0] if result[0] in VALID_CHARS else None
+    
+    if char is None:
+        agent_logger.warning(
+            f"[classify_cell] {image_path.name} -> UNKNOWN raw='{result}' "
+            f"— cell could not be classified"
+        )
+        return "?"  # jawny sygnał błędu, agent może go wykryć w promptcie
+    
     agent_logger.info(f"[classify_cell] {image_path.name} -> raw='{result}' char='{char}'")
     return char
 
@@ -80,5 +93,14 @@ def classify_grid(cells_dir: str) -> list[list[str]]:
         [classify_cell(str(coords[(r, c)])) for c in range(1, n_cols + 1)]
         for r in range(1, n_rows + 1)
     ]
-    agent_logger.info(f"[classify_grid] grid={grid}")
+
+    unknown = [
+        f"{r}x{c}={grid[r-1][c-1]}"
+        for r in range(1, n_rows + 1)
+        for c in range(1, n_cols + 1)
+        if grid[r-1][c-1] == "?"
+    ]
+    if unknown:
+        agent_logger.warning(f"[classify_grid] unclassified cells: {unknown}")
+
     return grid
