@@ -25,7 +25,7 @@ class LoggerCallbackHandler(BaseCallbackHandler):
         self.log.info(f"[Tool call]: {serialized['name']} | input: {input_str}")
 
     def on_tool_end(self, output, **kwargs):
-        self.log.debug(f"[Tool result]: {output}")
+        self.log.info(f"[Tool result]: {output}")
 
     def on_tool_error(self, error, **kwargs):
         self.log.warning(f"[Tool error]: {error}")

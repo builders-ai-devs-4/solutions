@@ -5,7 +5,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from subagents import _RECURSION_LIMIT, classify_grid
-from tools import detect_mimetype, detect_mimetype, get_file_list, get_filename, get_grid_cells_frome_image, read_file, reset_map, rotate_cell, save_file_from_url, scan_flag, count_prompt_tokens
+from tools import apply_rotation_to_grid, detect_mimetype, detect_mimetype, get_failed_plans, get_file_list, get_filename, get_grid_cells_frome_image, read_file, remember_failed_plan, reset_map, rotate_cell, save_file_from_url, scan_flag, count_prompt_tokens
 from loggers import LoggerCallbackHandler, agent_logger,get_logger, _log_dir
 from langchain_core.callbacks import BaseCallbackHandler
 
@@ -37,7 +37,10 @@ supervisor = create_agent(
         read_file,
         detect_mimetype,
         get_grid_cells_frome_image,
-        get_filename
+        get_filename,
+        apply_rotation_to_grid,
+        get_failed_plans,
+        remember_failed_plan
     ],
     system_prompt=SUPERVISOR_SYS_PROMPT,
     name="supervisor",

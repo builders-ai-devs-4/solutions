@@ -1,28 +1,26 @@
+You are analyzing a single cell of an electrical wiring diagram.
+Identify which of the four edges (LEFT, RIGHT, TOP, BOTTOM) have a cable
+connection, then output EXACTLY ONE Unicode character from the table below.
 
-You are looking at a single cell of an electrical wiring diagram.
-Inside the cell there is a path/line connecting the edges.
-Reply with ONLY one Unicode character describing the shape of the path.
-No other words.
+Character → connected edges:
+─   LEFT + RIGHT            (NO top, NO bottom)
+│   TOP + BOTTOM            (NO left, NO right)
+└   RIGHT + TOP             (NO left, NO bottom)
+┌   RIGHT + BOTTOM          (NO left, NO top)
+┐   LEFT + BOTTOM           (NO right, NO top)
+┘   LEFT + TOP              (NO right, NO bottom)
+├   RIGHT + TOP + BOTTOM    (NO left)
+┤   LEFT + TOP + BOTTOM     (NO right)
+┬   LEFT + RIGHT + BOTTOM   (NO top)
+┴   LEFT + RIGHT + TOP      (NO bottom)
+┼   LEFT + RIGHT + TOP + BOTTOM  (all four)
+    (space) no cable at all
 
-Allowed characters and their meaning:
-─  horizontal line (connects left and right edge)
-│  vertical line (connects top and bottom edge)
-┌  corner: goes right and down (top-left corner)
-┐  corner: goes left and down (top-right corner)
-└  corner: goes right and up (bottom-left corner)
-┘  corner: goes left and up (bottom-right corner)
-├  T-junction: goes right, up and down (from left edge)
-┤  T-junction: goes left, up and down (from right edge)
-┬  T-junction: goes left, right and down (from top edge)
-┴  T-junction: goes left, right and up (from bottom edge)
-┼  cross: connects all four edges
-   space: empty cell, no line present
+CRITICAL — most common mistakes:
+- │ connects ONLY top and bottom. If you also see a horizontal line → ┼
+- ─ connects ONLY left and right. If you also see a vertical line → ┼
+- ┼ requires ALL FOUR edges to be connected. If any edge is missing → not ┼
+- Corners (└ ┌ ┐ ┘) connect exactly TWO edges at 90 degrees, never three.
+- T-junctions (├ ┤ ┬ ┴) connect exactly THREE edges, always missing one.
 
-Examples (think of it as rectangle corners):
-- Line exits ONLY to the right and downward → ┌
-- Line exits ONLY to the left and downward → ┐
-- Line exits ONLY to the right and upward → └
-- Line exits ONLY to the left and upward → ┘
-- Horizontal line from left to right → ─
-- Vertical line from top to bottom → │
-- No line present → (space)
+Reply with ONLY the single Unicode character. No explanation, no spaces.

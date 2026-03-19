@@ -22,7 +22,18 @@ Grid coordinates:
 
 Rows: 1–3 (top to bottom).
 Columns: 1–3 (left to right).
-The power source enters from the WEST side of cell 3x1.
+There is one source (S) on the WEST side of each row:
+- S1 on the WEST side of cell 1x1
+- S2 on the WEST side of cell 2x1
+- S3 on the WEST side of cell 3x1
+
+There is one power station (PWR) on the EAST side of each row:
+- PWR6132PL on the EAST side of cell 1x3
+- PWR1593PL on the EAST side of cell 2x3
+- PWR7264PL on the EAST side of cell 3x3
+
+Each power station must be powered by at least one source through a
+continuous, consistent cable path.
 
 ## Connector symbols — shapes and rotations
 
@@ -92,13 +103,13 @@ Example:
 A configuration is considered logically correct ONLY if ALL of the following
 hold:
 
-1. There is a continuous cable path from the source (west of 3x1) to each of
-   the three power stations (PWR6132PL, PWR1593PL, PWR7264PL).
+1. There is a continuous cable path from at least one source to each of the
+   three power stations (PWR6132PL, PWR1593PL, PWR7264PL).
 2. For every pair of adjacent cells, connections are consistent:
    - if a cell has an East cable, the cell on its right must have a West cable;
    - if a cell has a North cable, the cell above must have a South cable; etc.
 3. No cable ends abruptly:
-   - a cable that goes to a grid edge must either connect to the source or a
+   - a cable that goes to a grid edge must either connect to a source or a
      station; it must not "hang in the air".
 4. Prefer simple, clean paths without unnecessary branches, but correctness
    (all 3 stations powered) is always the priority.
@@ -117,23 +128,23 @@ This means:
 - The flag can appear after ANY rotate_cell call, not only the last one.
 - The absence of a flag in a rotate_cell response means the board is still
   incorrect — continue planning and executing rotations.
-- The flag will NEVER appear spontaneously or in any tool response other
-  than rotate_cell. Do not scan classify_grid, reset_map or other tool
-  outputs for flags.
-- You do not need to make a separate "check" API call — rotate_cell is
-  both the action and the verification signal.
+- The flag will NEVER appear in any tool response other than rotate_cell.
+  Do not scan classify_grid, reset_map, apply_rotation_to_grid or any
+  other tool output for flags.
+- You do not need a separate "check" API call — rotate_cell is both the
+  action and the verification signal.
 
 Therefore:
 - scan_flag(response) must be called after EVERY single rotate_cell call
   without exception.
-- If scan_flag returns None → the board is not yet solved, continue.
-- If scan_flag returns {FLG:...} → the puzzle is solved, stop immediately.
+- If scan_flag returns None → board is not yet solved, continue.
+- If scan_flag returns {FLG:...} → puzzle is solved, stop immediately.
 
 ## Reasoning example — 2×3 grid
 
-This example shows the full reasoning cycle: classify → analyse →
-plan → execute → verify.
-It uses a simpler 2×3 board but the logic applies directly to your 3×3 task.
+This example shows the full reasoning cycle: classify → check history →
+analyse → plan → execute → verify. It uses a simpler 2×3 board but the
+logic applies directly to your 3×3 task.
 
 Board layout (2 rows × 3 columns):
 
@@ -142,10 +153,10 @@ row1:  1x1   1x2   1x3
 row2:  2x1   2x2   2x3
 
 Sources and power stations:
-- S1 on the WEST side of cell 1x1  (enters 1x1 from the West)
-- S2 on the WEST side of cell 2x1  (enters 2x1 from the West)
-- P1 on the EAST side of cell 1x3  (powered when 1x3 has an East cable)
-- P2 on the EAST side of cell 2x3  (powered when 2x3 has an East cable)
+- S1 on the WEST side of cell 1x1
+- S2 on the WEST side of cell 2x1
+- P1 on the EAST side of cell 1x3
+- P2 on the EAST side of cell 2x3
 
 ### Step 1 — classify_grid output (initial state)
 
@@ -160,7 +171,12 @@ Meaning:
 - 2x2 = ─ (W, E)
 - 2x3 = ├ (N, S, E)
 
-### Step 2 — analyse connectivity
+### Step 2 — check failed history
+
+Call get_failed_plans(). Assume it returns [] (no prior attempts).
+Proceed to connectivity analysis.
+
+### Step 3 — analyse connectivity
 
 Row 1:
 - S1 enters 1x1 from the WEST. Cell 1x1 = ┤ has W edge. ✓
@@ -174,7 +190,7 @@ Row 2:
 
 P1 and P2 are not powered. Rotations are required.
 
-### Step 3 — plan rotations
+### Step 4 — plan rotations
 
 - 1x1 = ┤ (N, S, W). Need W and E → target ┬ (S, W, E).
   T-junction table: ┤ → 3×CW → ┬. Plan: 3 rotations.
@@ -192,20 +208,22 @@ P1 and P2 are not powered. Rotations are required.
 - 2x3 = ├ (N, S, E). Need W and E → target ┴ (N, W, E).
   T-junction table: ├ → 3×CW → ┴. Plan: 3 rotations.
 
-Execution order:
-1. rotate_cell(col=1, row=1)  ← 1st of 3 for 1x1
-2. rotate_cell(col=1, row=1)  ← 2nd of 3 for 1x1
-3. rotate_cell(col=1, row=1)  ← 3rd of 3 for 1x1
-4. rotate_cell(col=3, row=1)  ← 1st of 1 for 1x3
-5. rotate_cell(col=1, row=2)  ← 1st of 1 for 2x1
-6. rotate_cell(col=3, row=2)  ← 1st of 3 for 2x3
-7. rotate_cell(col=3, row=2)  ← 2nd of 3 for 2x3
-8. rotate_cell(col=3, row=2)  ← 3rd of 3 for 2x3
+Cross-check against get_failed_plans(): no conflicts. Proceed.
 
-After each rotate_cell call: immediately call scan_flag on the response.
-If scan_flag returns {FLG:...} at any point → STOP and report the flag.
+### Step 5 — execute rotations
 
-### Step 4 — solved state
+1. rotate_cell(col=1, row=1) → scan_flag → apply_rotation_to_grid
+2. rotate_cell(col=1, row=1) → scan_flag → apply_rotation_to_grid
+3. rotate_cell(col=1, row=1) → scan_flag → apply_rotation_to_grid
+4. rotate_cell(col=3, row=1) → scan_flag → apply_rotation_to_grid
+5. rotate_cell(col=1, row=2) → scan_flag → apply_rotation_to_grid
+6. rotate_cell(col=3, row=2) → scan_flag → apply_rotation_to_grid
+7. rotate_cell(col=3, row=2) → scan_flag → apply_rotation_to_grid
+8. rotate_cell(col=3, row=2) → scan_flag → apply_rotation_to_grid
+
+After each rotate_cell: immediately call scan_flag. If {FLG:...} → STOP.
+
+### Step 6 — solved state
 
 Row 1: S1 | ┬  ─  ┬ | P1
 Row 2: S2 | ┴  ─  ┴ | P2
@@ -247,22 +265,40 @@ Rules when "?" is present:
   cell_{row}_{col}.png, and returns the directory path containing these cells.
 
 - classify_grid(cells_dir: str) -> list[list[str]]
-  Classifies all cell images in the given directory and returns a 2D list
-  of Unicode box‑drawing characters indexed as grid[row][col] with 0-based
-  Python indices (row 0..2, col 0..2).
-  Returns "?" for any cell that could not be classified.
+  Classifies all cell images and returns a 2D list of Unicode box‑drawing
+  characters indexed as grid[row][col] with 0-based Python indices (row 0..2,
+  col 0..2). Returns "?" for any cell that could not be classified.
+
+- apply_rotation_to_grid(grid_json: str, col: int, row: int) -> str
+  Applies a single 90° CW rotation to an in-memory grid state.
+  Updates the symbol at (row, col) according to rotation rules.
+  Returns the updated grid as JSON string.
+  Use this INSTEAD of re-downloading the image after every rotation.
 
 - rotate_cell(col: int, row: int) -> dict
-  Rotates a single grid cell 90 degrees clockwise.
+  Rotates a single grid cell 90 degrees clockwise on the server.
   IMPORTANT: row and col are 1‑based indices, from 1 to 3.
-  The tool sends the rotation request to the puzzle API.
 
 - scan_flag(text: str) -> Optional[str]
   Scans a text for a flag in format {FLG:...}.
   Returns the flag string if found, or None otherwise.
+  Call this ONLY on rotate_cell responses.
 
 - reset_map() -> bool
   Resets the board on the server to its initial state. Returns True on success.
+  Always call remember_failed_plan() BEFORE calling reset_map().
+
+- remember_failed_plan(grid_json: str, plan_json: str, reason: str) -> str
+  Stores a rotation plan that was attempted but did not yield a flag.
+  Call this before every reset_map() to record what was tried and why it failed.
+  Args:
+    grid_json: initial grid state before the plan (JSON string)
+    plan_json: list of rotations attempted, e.g. '[{"row":1,"col":1,"times":2}]'
+    reason: short description, e.g. "no flag after 8 rotations, PWR1593PL disconnected"
+
+- get_failed_plans() -> str
+  Returns all previously failed rotation plans as a JSON string.
+  Call this IMMEDIATELY after every classify_grid call, before planning rotations.
 
 - get_file_list(folder: str, filter: str = "") -> list[str]
   Lists files in a folder, optionally filtered by a substring.
@@ -274,84 +310,117 @@ Rules when "?" is present:
 
 ### Phase 0 — Reset to known state
 
-Before doing anything else:
-1. Call reset_map() to ensure the board starts from its initial,
-   known configuration.
+1. Call reset_map() to ensure the board starts from its initial configuration.
 2. Verify reset_map() returned True. If False, call it again once.
 3. Only after a successful reset proceed to Phase 1.
 
-This guarantees that your rotation plan is always based on the true
-initial state, not a leftover state from a previous run.
+This guarantees your rotation plan is always based on the true initial state,
+not a leftover state from a previous run.
 
 ### Phase 1 — Classify current board
 
-1. Use save_file_from_url(board_url, working_folder) from the user message
-   to download the current board image.
-2. Call get_grid_cells_frome_image(image_path) on the downloaded file to
-   split it into 9 cell images. Note the returned cells directory.
-3. Call classify_grid(cells_dir) to obtain current_grid, a 3×3 list of
-   box‑drawing characters (current_grid[row][col] with row,col in 0..2).
+1. Call save_file_from_url(board_url, working_folder) to download the board.
+2. Call get_grid_cells_frome_image(image_path) to split into 9 cell images.
+3. Call classify_grid(cells_dir) to obtain current_grid (3×3 list,
+   0-based indices).
 4. If any cell is "?" → do NOT continue. Call reset_map() and restart
    from Phase 1 step 1.
+5. Serialize current_grid to a JSON string. Store it as initial_grid_json
+   for use in remember_failed_plan() later.
 
-### Phase 2 — Analyse connectivity
+### Phase 2 — Check failed history
 
-5. For each cell in current_grid, infer which edges (N, S, E, W) have cables
-   based on the symbol and the rotation table.
-6. Build a logical graph of connections between:
-   - the source at the west side of cell 3x1,
-   - all cells,
-   - all three power stations.
-7. Determine whether all three stations are reachable from the source via
-   valid, consistent connections.
-   - If YES and topology is consistent → board is logically solved;
-     keep executing remaining planned rotations to trigger the flag.
-   - If NO → identify which cells are misaligned and how rotating them
-     will fix connectivity.
+1. Call get_failed_plans() immediately after classify_grid.
+2. Compare current initial_grid_json with stored failed plan initial states.
+   - If a match is found → note which rotation plans were already tried
+     from this state. You MUST design a different plan in Phase 4.
+   - If no match → this is a fresh state, proceed normally.
 
-### Phase 3 — Plan rotations
+### Phase 3 — Analyse connectivity
 
-8. Propose a concrete rotation plan:
-   - A list of (row, col, rotations) where row and col are 1–3 and
-     rotations is 1–3 times 90° clockwise.
-   - Use the rotation table to compute exact rotation counts.
-   - Never plan 4 rotations for the same cell (4×90° = no net change).
-9. Plan all rotations before executing any of them.
+1. For each cell in current_grid, infer active edges (N, S, E, W) from
+   the symbol using the rotation table.
+2. Build a logical connection graph:
+   - sources S1 (west of 1x1), S2 (west of 2x1), S3 (west of 3x1),
+   - all 9 cells,
+   - power stations PWR6132PL (east of 1x3), PWR1593PL (east of 2x3),
+     PWR7264PL (east of 3x3).
+3. Determine whether all three stations are reachable from at least one
+   source via valid, consistent connections.
+   - If YES → board is logically solved; proceed to Phase 4 to trigger flag.
+   - If NO → identify misaligned cells and required edge changes.
 
-### Phase 4 — Execute with flag checks
+### Phase 4 — Plan rotations
 
-10. For each planned rotation in order:
-    a. Call rotate_cell(col=col, row=row) with 1‑based indices (1–3).
-    b. Immediately call scan_flag(response_text) on the rotate_cell result.
-    c. If scan_flag returns {FLG:...} → STOP immediately and output that
-       flag as your final answer.
+1. Design a rotation plan: a list of (row, col, rotations) where row and
+   col are 1–3 and rotations is 1–3 × 90° CW.
+2. Use the rotation table to compute exact rotation counts per cell.
+3. Cross-check against get_failed_plans():
+   - If this exact (initial_state + plan) combination was already tried →
+     discard and design a different plan.
+   - If the plan is new → proceed.
+4. Never plan 4 rotations for the same cell (4×90° = no net change).
+5. Plan ALL rotations before executing any of them.
 
-### Phase 5 — Re-classify and verify
+### Phase 5 — Execute with in-memory state update
 
-11. After executing the current batch of rotations:
-    a. Repeat Phase 1: download the board again, split, classify →
-       updated current_grid.
-    b. Repeat Phase 2: recompute connectivity from the new current_grid.
+For each planned rotation in order:
+1. Call rotate_cell(col=col, row=row) — sends rotation to server.
+2. Immediately call scan_flag(response_text).
+   - If {FLG:...} found → STOP immediately, report the flag as final answer.
+3. Call apply_rotation_to_grid(current_grid_json, col, row) to update
+   your in-memory grid state without re-downloading the image.
+4. Continue to next planned rotation.
 
-12. If Phase 2 says the board is logically correct but no flag was seen:
-    - Suspect a classification or reasoning error.
-    - Call reset_map() and restart from Phase 1.
+Re-download and re-classify the full board ONLY:
+- After completing the full rotation plan (all planned rotations done), OR
+- Every 9 rotations as a safety check, OR
+- If symbols look inconsistent after several apply_rotation_to_grid calls.
 
-13. If after two full cycles you still fail to reach a consistent solution:
-    - Call reset_map() to start from the initial configuration again.
-    - Change your rotation strategy and try a different plan.
+Do NOT call save_file_from_url or classify_grid after every single rotation.
+
+### Phase 6 — Re-classify and verify
+
+After completing the full rotation plan:
+1. Download fresh board: save_file_from_url → get_grid_cells_frome_image
+   → classify_grid → updated current_grid.
+2. Recompute connectivity (Phase 3).
+3. If board is logically correct but no flag was received:
+   - Call remember_failed_plan(initial_grid_json, plan_json, reason).
+   - Call reset_map() and restart from Phase 1.
+4. If board still has disconnected stations:
+   - Call remember_failed_plan(initial_grid_json, plan_json, reason).
+   - Call reset_map() and restart from Phase 1.
+
+### Phase 7 — Escape if stuck
+
+If get_failed_plans() shows 3 or more failed attempts from the same
+initial grid state:
+- Re-examine which cells are on the critical path from each source to
+  each PWR. Focus on cells you have NOT rotated in previous plans.
+- Try a completely different routing strategy (e.g. route via vertical
+  connections instead of horizontal if previous attempts used horizontal).
+- If still stuck after 5 total failed attempts, stop and report the
+  failure with the full get_failed_plans() output for debugging.
 
 ## Efficiency and safety rules
 
-- Always treat scan_flag on rotate_cell responses as the primary stop condition.
-- Never stop only because the grid "looks correct" according to your analysis.
+- Always treat scan_flag on rotate_cell responses as the primary stop
+  condition. Never stop only because the grid "looks correct".
 - Use at most 3 rotations per cell in a single plan.
-- Re-classify from the live board image after each batch of rotations;
-  do not rely only on your internal model of the grid.
-- Use reset_map() when classifications appear unstable or the board seems
-  solved but no flag is returned.
-- Never call scan_flag on classify_grid, reset_map or any other tool output —
-  only on rotate_cell responses.
+- Re-classify from the live board image after each full rotation plan,
+  not after every individual rotation — use apply_rotation_to_grid
+  for in-memory tracking between re-classifications.
+- Call get_failed_plans() as the FIRST action after every classify_grid
+  call, before planning any rotations.
+- Call remember_failed_plan() BEFORE every reset_map() call — never
+  reset without storing the current attempt first.
+- Never execute a rotation plan identical to a stored failed plan from
+  the same initial grid state.
+- Never call scan_flag on classify_grid, reset_map, apply_rotation_to_grid
+  or any other tool output — only on rotate_cell responses.
+- Never call reset_map() without first calling remember_failed_plan()
+  to preserve the attempt history.
 
 ## Final output
 

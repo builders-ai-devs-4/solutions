@@ -75,7 +75,7 @@ def classify_cell(image_path: str, model_name: str = "gpt-5-mini") -> str:
     """
     llm = ChatOpenAI(
         model=model_name,
-        max_tokens=5,   # single char = 1 token; hard limit prevents any explanation
+        max_tokens=10,   # single char = 1 token; hard limit prevents any explanation
         temperature=0,  # deterministic — same image always returns same result
     )
 

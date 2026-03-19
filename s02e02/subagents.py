@@ -15,7 +15,7 @@ from langchain.messages import SystemMessage, HumanMessage
 prompt_logger = get_logger("prompt", log_dir=_log_dir(), log_stem="prompt")
 
 MAX_TOOL_ITERATIONS = 10  # 10 requests + reset + download CSV ~ 12 tool calls
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 12 + 2  # 122
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 16 + 2  # 162
 
 MAP_URL = os.environ["MAP_URL"]
 MAP_RESET_URL = os.environ["MAP_RESET_URL"]
@@ -24,7 +24,9 @@ PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 char_classify_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "char_classify_prompt.md"
                      ).read_text(encoding="utf-8")
 VALID_CHARS = set("│─└┘┌┐├┤┬┴┼")
-_classify_llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=5, temperature=0)
+# _classify_llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=10, temperature=0)
+# _classify_llm = ChatOpenAI(model="gpt-5-mini", max_tokens=500, temperature=0)
+_classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 
 def classify_cell(image_path: str) -> str:
@@ -38,6 +40,7 @@ def classify_cell(image_path: str) -> str:
         {"type": "image_url", "image_url": {
             "url": f"data:{media_type};base64,{b64}",
             "detail": "high",
+            
         }},
     ])
 
