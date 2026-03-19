@@ -138,20 +138,20 @@ def split_grid(gray, margin=4):
     discarding maze paths inside cells.
     """
     binary = _img_binarization(gray)
-    img_file = DEBUG_DIR/ "01_binary.png"
+    img_file = DEBUG_DIR / "01_binary.png"
     save_img(img_file, binary)
     agent_logger.info(f"[grid_detector] saved binary image: {str(img_file)}")
     
     horiz, vert = _img_morphology(gray, binary)
-    img_file = DEBUG_DIR/ "02_morph_horiz.png"
+    img_file = DEBUG_DIR / "02_morph_horiz.png"
     save_img(img_file, horiz)
     agent_logger.info(f"[grid_detector] saved horizontal morphology image: {str(img_file)}")
-    img_file = DEBUG_DIR/ "03_morph_vert.png"
+    img_file = DEBUG_DIR / "03_morph_vert.png"
     save_img(img_file, vert)
     agent_logger.info(f"[grid_detector] saved vertical morphology image: {str(img_file)}")
     
     grid_lines_img = _img_grid_lines(horiz, vert)
-    img_file = DEBUG_DIR/ "04_grid_lines.png"
+    img_file = DEBUG_DIR / "04_grid_lines.png"
     save_img(img_file, grid_lines_img)
     agent_logger.info(f"[grid_detector] saved grid lines image: {str(img_file)}")
     
@@ -162,7 +162,7 @@ def split_grid(gray, margin=4):
     agent_logger.info(f"[grid_detector] col_lines: {col_lines}")
     
     vis = _img_visualization(gray, row_lines, col_lines)
-    img_file = TASK_DATA_FOLDER_PATH/ "05_grid_detected.png"
+    img_file = Path(TASK_DATA_FOLDER_PATH) / "05_grid_detected.png"
     save_img(img_file, vis)
     agent_logger.info(f"[grid_detector] saved grid visualization image: {str(img_file)}")
     
@@ -194,7 +194,7 @@ def get_grid_cells(image_path: str):
     image_path = Path(image_path)
     gray = change_img_to_gray(image_path)
     
-    img_file = DEBUG_DIR/ "00_input_gray.png"
+    img_file = DEBUG_DIR / "00_input_gray.png"
     save_img(img_file, gray)
     agent_logger.info(f"[grid_detector] saved gray image: {str(img_file)}")
     cells, row_lines, col_lines = split_grid(gray)

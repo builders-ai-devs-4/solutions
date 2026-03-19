@@ -2,8 +2,8 @@
 from pydantic import BaseModel, Field
 
 class RotateCellInput(BaseModel):
-    col: int = Field(..., ge=0, le=2, description="Column index, becomes first part of 'COLxROW'")
-    row: int = Field(..., ge=0, le=2, description="Row index, becomes second part of 'COLxROW'")
+    col: int = Field(..., ge=1, le=3, description="Row index 1-3")
+    row: int = Field(..., ge=1, le=3, description="Column index 1-3")
 
 class AnswerModel(BaseModel):
     rotate: str = Field(

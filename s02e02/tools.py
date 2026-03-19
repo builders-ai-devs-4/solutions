@@ -14,7 +14,7 @@ from modules.models import AnswerModel, RotateCellInput, SolutionUrlRequest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from libs.filetype_detect import detect_file_type
-from libs.generic_helpers import read_csv_rows, read_file_base64, read_file_text, save_file
+from libs.generic_helpers import get_filename_from_url, read_file_base64, read_file_text, save_file
 import tiktoken
 from loggers import agent_logger, api_logger
 
@@ -25,6 +25,7 @@ MAP_URL             = os.environ["MAP_URL"]
 MAP_RESET_URL       = os.environ["MAP_RESET_URL"]
 DATA_FOLDER_PATH    = os.environ["DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
+TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 
@@ -39,6 +40,12 @@ def scan_flag(text: str) -> Optional[str]:
         return match.group(0)
     return None
    
+@tool
+def get_filename(url: str) -> str:
+    """Extracts a filename from a URL, using the last path segment or a default name."""
+    filename = get_filename_from_url(url)
+    return filename
+
 @tool
 def save_file_from_url(url: str, folder: str) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
@@ -74,8 +81,8 @@ def get_file_list(folder: str, filter: str = None) -> list[str]:
     No wildcards, just a simple substring match."""
     folder = Path(folder)
     if filter:
-        return [f for f in folder.glob(f"*{filter}*") if f.is_file()]
-    return [f for f in folder.glob("*") if f.is_file()]
+        return [str(f) for f in folder.glob(f"*{filter}*") if f.is_file()]
+    return [str(f) for f in folder.glob("*") if f.is_file()]
 
 @tool
 def read_file(file_path: str) -> str:

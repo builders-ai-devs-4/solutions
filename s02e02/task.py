@@ -47,15 +47,19 @@ if __name__ == "__main__":
     agent_logger.info(f"[task] Starting task: {TASK_NAME}")
     result = supervisor.invoke(
         {"messages": 
-            [{"role": "user", 
-              "content": (
-                "Solve the 3x3 electrical wiring puzzle. "
-                "Download the current board image from MAP_URL, classify the grid, "
-                "compare it with the target state from the target image in TASK_DATA_FOLDER_PATH, "
-                "plan the required rotations and execute them. "
-                "After each rotation check the server response for a flag {FLG:...}. "
-                "Verify the board after every batch of rotations and repeat until the flag is received."
-            )
+            [{"role": "user",
+                "content": (
+                    f"Solve the 3x3 electrical wiring puzzle.\n"
+                    f"Board URL: {map_url}\n"
+                    f"Working folder: {task_data_folder}\n\n"
+                    f"Start with these exact steps:\n"
+                    f"1. save_file_from_url('{map_url}', '{task_data_folder}') — this is BOTH current state AND target state.\n"
+                    f"2. Immediately classify it as target_grid using get_grid_cells_frome_image + classify_grid.\n"
+                    f"3. Then download the board again (same URL) to get the current state and classify as current_grid.\n"
+                    f"4. Compare, plan rotations, execute.\n"
+                    f"Start now."
+                )
+
               }]},
         config=SUPERVISOR_CONFIG,
     )
