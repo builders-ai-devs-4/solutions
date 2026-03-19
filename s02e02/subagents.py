@@ -42,7 +42,9 @@ def classify_cell(image_path: str) -> str:
     ])
 
     result = (_classify_llm | StrOutputParser()).invoke([message]).strip()
-    return result[0] if result and result[0] in VALID_CHARS else " "
+    char = result[0] if result and result[0] in VALID_CHARS else " "
+    agent_logger.info(f"[classify_cell] {image_path.name} -> raw='{result}' char='{char}'")
+    return char
 
 
 @tool("classify_grid", description=(
@@ -73,8 +75,10 @@ def classify_grid(cells_dir: str) -> list[list[str]]:
     n_rows = max(r for r, _ in coords) 
     n_cols = max(c for _, c in coords)
 
-    return [
+    agent_logger.info(f"[classify_grid] cells_dir={cells_dir} n_rows={n_rows} n_cols={n_cols}")
+    grid = [
         [classify_cell(str(coords[(r, c)])) for c in range(1, n_cols + 1)]
         for r in range(1, n_rows + 1)
     ]
-    
+    agent_logger.info(f"[classify_grid] grid={grid}")
+    return grid

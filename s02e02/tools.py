@@ -38,6 +38,7 @@ def scan_flag(text: str) -> Optional[str]:
     if match:
         agent_logger.info(f"[FLAG FOUND] {match.group(0)}")
         return match.group(0)
+    agent_logger.info(f"[scan_flag] no flag in text (len={len(text)})")
     return None
    
 @tool
@@ -49,13 +50,18 @@ def get_filename(url: str) -> str:
 @tool
 def save_file_from_url(url: str, folder: str) -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
-    Path(folder).mkdir(parents=True, exist_ok=True)
-    return save_file(url, folder, override=True)
+    folder_path = Path(folder)
+    folder_path.mkdir(parents=True, exist_ok=True)
+    agent_logger.info(f"[save_file_from_url] url={url} folder={folder_path}")
+    path = save_file(url, folder_path, override=True)
+    agent_logger.info(f"[save_file_from_url] saved_to={path}")
+    return path
 
 @tool("rotate_cell",
-      description="Rotates a single grid cell 90 degrees clockwise. Use col and row index (0-2).",
+      description="Rotates a single grid cell 90 degrees clockwise. Use ROW and COL index (1-3).",
       args_schema=RotateCellInput)
 def rotate_cell(col: int, row: int) -> dict:
+    agent_logger.info(f"[rotate_cell] input col={col} row={row}")
     payload = SolutionUrlRequest(
         apikey=AI_DEVS_SECRET,
         task=TASK_NAME,
@@ -65,24 +71,29 @@ def rotate_cell(col: int, row: int) -> dict:
         SOLUTION_URL,
         json=payload.model_dump()
     )
-    agent_logger.info(f"[rotate_cell] col={col} row={row} → {payload.answer.rotate}")
+    agent_logger.info(f"[rotate_cell] sent rotate={payload.answer.rotate} status={response.status_code}")
     return response.json()
 
 @tool
 def reset_map():
     """Sends a request to reset the map to its initial state."""
+    agent_logger.info(f"[reset_map] calling {MAP_RESET_URL}")
     response = requests.get(MAP_RESET_URL)
     agent_logger.info(f"[reset_map] Map reset response: {response.status_code}")
     return response.status_code == 200
 
 @tool
-def get_file_list(folder: str, filter: str = None) -> list[str]:
+def get_file_list(folder: str, filter: str = "") -> list[str]:
     """ Get a list of files in the specified folder, optionally filtered by a string .f.ex md. 
     No wildcards, just a simple substring match."""
-    folder = Path(folder)
+    folder_path = Path(folder)
+    agent_logger.info(f"[get_file_list] folder={folder_path} filter='{filter}'")
     if filter:
-        return [str(f) for f in folder.glob(f"*{filter}*") if f.is_file()]
-    return [str(f) for f in folder.glob("*") if f.is_file()]
+        files = [str(f) for f in folder_path.glob(f"*{filter}*") if f.is_file()]
+    else:
+        files = [str(f) for f in folder_path.glob("*") if f.is_file()]
+    agent_logger.info(f"[get_file_list] found={len(files)} files")
+    return files
 
 @tool
 def read_file(file_path: str) -> str:
@@ -92,7 +103,7 @@ def read_file(file_path: str) -> str:
     if not file_path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
     info = detect_file_type(file_path)
-    
+    agent_logger.info(f"[read_file] path={file_path} kind={info.final_kind}")
     if info.final_kind == "text":
         return read_file_text(file_path)
     else:
@@ -115,4 +126,7 @@ def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
 @tool
 def get_grid_cells_frome_image(image_path: str) -> str:
     """Detect grid lines in the wiring diagram image, split it into cells, save them to disk, and return the folder path."""
-    return get_grid_cells(image_path)
+    agent_logger.info(f"[get_grid_cells_frome_image] image_path={image_path}")
+    cells_dir = get_grid_cells(image_path)
+    agent_logger.info(f"[get_grid_cells_frome_image] cells_dir={cells_dir}")
+    return cells_dir

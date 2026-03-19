@@ -48,17 +48,15 @@ if __name__ == "__main__":
     result = supervisor.invoke(
         {"messages": 
             [{"role": "user",
-                "content": (
-                    f"Solve the 3x3 electrical wiring puzzle.\n"
-                    f"Board URL: {map_url}\n"
-                    f"Working folder: {task_data_folder}\n\n"
-                    f"Start with these exact steps:\n"
-                    f"1. save_file_from_url('{map_url}', '{task_data_folder}') — this is BOTH current state AND target state.\n"
-                    f"2. Immediately classify it as target_grid using get_grid_cells_frome_image + classify_grid.\n"
-                    f"3. Then download the board again (same URL) to get the current state and classify as current_grid.\n"
-                    f"4. Compare, plan rotations, execute.\n"
-                    f"Start now."
-                )
+                        "content" : (
+                            f"Solve the 3x3 electrical wiring puzzle.\n"
+                            f"Board URL: {map_url}\n"
+                            f"Working folder: {task_data_folder}\n\n"
+                            f"You have a reset_map() tool that returns the board to its initial state.\n"
+                            f"Use it if your classification or reasoning seems inconsistent, or if the "
+                            f"board appears solved but no flag is returned after several attempts.\n"
+                            f"Follow the system instructions and start now."
+                        )
 
               }]},
         config=SUPERVISOR_CONFIG,
