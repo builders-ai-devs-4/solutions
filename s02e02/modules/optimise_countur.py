@@ -37,14 +37,36 @@ def enhance_lines(img: np.ndarray) -> np.ndarray:
     return combined
 
 def check_edge_connectivity(img: np.ndarray, threshold=0.15) -> dict:
-    h, w = img.shape
-    margin = int(min(h, w) * threshold)  # ~15% szerokości komórki
+    # h, w = img.shape
+    # margin = int(min(h, w) * threshold)  # ~15% szerokości komórki
     
+    # return {
+    #     'TOP':    img[:margin, :].max() > 127,
+    #     'BOTTOM': img[-margin:, :].max() > 127,
+    #     'LEFT':   img[:, :margin].max() > 127,
+    #     'RIGHT':  img[:, -margin:].max() > 127,
+    # }
+    
+    # Powyższy kod zakłada, że do tej funkcji trafia obraz po binaryzacji, gdzie linie są białe, a tło czarne. Upewnij się, że tak jest na tym etapie w Twoim potoku!
+    h, w = img.shape
+    
+    # Patrzymy tylko na wąski pasek na samym ŚRODKU krawędzi
+    center_x, center_y = w // 2, h // 2
+    span = 10  # 10 pikseli w lewo i prawo od środka
+    edge_depth = 5 # Sprawdzamy 5 pikseli w głąb od krawędzi
+    
+    # Wycinamy środkowe punkty styku dla każdej krawędzi
+    top_edge = img[0:edge_depth, center_x-span : center_x+span]
+    bottom_edge = img[h-edge_depth:h, center_x-span : center_x+span]
+    left_edge = img[center_y-span : center_y+span, 0:edge_depth]
+    right_edge = img[center_y-span : center_y+span, w-edge_depth:w]
+    
+    # Jeśli w okienku jest mocno biały piksel (>127), linia wychodzi tą krawędzią
     return {
-        'TOP':    img[:margin, :].max() > 127,
-        'BOTTOM': img[-margin:, :].max() > 127,
-        'LEFT':   img[:, :margin].max() > 127,
-        'RIGHT':  img[:, -margin:].max() > 127,
+        'TOP':    int(top_edge.max()) > 127,
+        'BOTTOM': int(bottom_edge.max()) > 127,
+        'LEFT':   int(left_edge.max()) > 127,
+        'RIGHT':  int(right_edge.max()) > 127,
     }
 
 def prepare_for_llm(img: np.ndarray) -> np.ndarray:
@@ -53,12 +75,21 @@ def prepare_for_llm(img: np.ndarray) -> np.ndarray:
     
     # Zwiększ kontrast — linie mają być idealnie czarne, tło białe
     img = cv2.convertScaleAbs(img, alpha=2.0, beta=-50)
+           
+    # --- NOWE: ODWRÓCENIE KOLORÓW (NEGATYW) ---
+    # Algorytmy morfologiczne wyżej działają na białych liniach na czarnym tle.
+    # Tutaj odwracamy to dla LLM: czarne linie, białe tło.
+    img = cv2.bitwise_not(img)
     
-    # Dodaj wyraźną ramkę wskazującą granice komórki
-    cv2.rectangle(img, (2, 2), (253, 253), 128, 2)
+    # --- UWAGA NA RAMKĘ ---
+    # Zakomentowałem tę linię. Jeśli narysujesz tu czarną ramkę, LLM
+    # pomyśli, że linie dotykają wszystkich krawędzi obrazu.
+    # Jeśli narysujesz białą, możesz "odciąć" przewód od krawędzi.
+    # Najlepiej pozostawić krawędzie naturalne po odwróceniu kolorów.
+    # cv2.rectangle(img, (0, 0), (255, 255), 255, 3)  
     
     return img
-
+    
 # Mapowanie: frozenset krawędzi → znak Unicode
 EDGES_TO_CHAR = {
     frozenset():                                ' ',

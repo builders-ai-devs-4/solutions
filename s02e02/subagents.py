@@ -11,6 +11,7 @@ from loggers import LoggerCallbackHandler, agent_logger,get_logger, _log_dir
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.output_parsers import StrOutputParser
 from langchain.messages import SystemMessage, HumanMessage
+import re
 
 prompt_logger = get_logger("prompt", log_dir=_log_dir(), log_stem="prompt")
 
@@ -28,7 +29,7 @@ VALID_CHARS = set("│─└┘┌┐├┤┬┴┼")
 # _classify_llm = ChatOpenAI(model="gpt-5-mini", max_tokens=500, temperature=0)
 # _classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 # _classify_llm = ChatOpenAI(model="gpt-5", temperature=0)
-_classify_llm = ChatOpenAI(model="gpt-4o", temperature=0)
+_classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 
 def classify_cell(image_path: str) -> str:
@@ -41,7 +42,7 @@ def classify_cell(image_path: str) -> str:
         {"type": "text", "text": char_classify_prompt},
         {"type": "image_url", "image_url": {
             "url": f"data:{media_type};base64,{b64}",
-            "detail": "high",
+            "detail": "low",
             
         }},
     ])
@@ -52,7 +53,13 @@ def classify_cell(image_path: str) -> str:
         agent_logger.warning(f"[classify_cell] {image_path.name} -> EMPTY response")
         return "?"
 
-    char = result[0] if result[0] in VALID_CHARS else None
+    match = re.search(r'<char>(.)</char>', result)
+    if match and match.group(1) in VALID_CHARS:
+        char = match.group(1)
+    else:
+        # Fallback: znajdź jakikolwiek prawidłowy znak w całej odpowiedzi
+        valid_found = [c for c in result if c in VALID_CHARS]
+        char = valid_found[-1] if valid_found else None
     
     if char is None:
         agent_logger.warning(

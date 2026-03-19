@@ -4,6 +4,8 @@ import sys
 from dotenv import load_dotenv
 from string import Template
 import numpy as np
+
+from s02e02.modules.optimise_countur import enhance_lines, prepare_for_llm, preprocess_cell
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.generic_helpers import get_path_from_url, save_file
 from libs.logger import get_logger
@@ -202,5 +204,10 @@ def get_grid_cells(image_path: str):
     for (r, c), cell in cells.items():
         cells_path = CELLS_DIR / f"cell_{r+1}_{c+1}.png"
         cv2.imwrite(str(cells_path), cell)
+        
+        preprocessed = preprocess_cell(str(cells_path))
+        enhanced = enhance_lines(preprocessed)
+        cell_for_llm = prepare_for_llm(enhanced)
+        cv2.imwrite(str(cells_path), cell_for_llm)
         agent_logger.info(f"[grid_detector] saved cell image: {str(cells_path)}")
     return str(CELLS_DIR)

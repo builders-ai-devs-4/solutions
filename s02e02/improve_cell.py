@@ -39,14 +39,14 @@ map_reset_url = map_reset_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["MAP_RESET_URL"] = str(map_reset_url)
 
 from modules.grid_detector import save_img
-
-cell = parent_folder_path / DATA_FOLDER / TASK_NAME / 'cells' / 'cell_1_1.png'
+name_img = 'cell_3_3'
+cell = parent_folder_path / DATA_FOLDER / TASK_NAME / 'cells' / f'{name_img}.png'
 
 preprocessed = preprocess_cell(cell)
-save_img(task_data_folder / "cells" / "cell_1_1_preprocessed.png", preprocessed)
+save_img(task_data_folder / "cells" / f"{name_img}_preprocessed.png", preprocessed)
 enhanced = enhance_lines(preprocessed)
-save_img(task_data_folder / "cells" / "cell_1_1_enhanced.png", enhanced)
+save_img(task_data_folder / "cells" / f"{name_img}_enhanced.png", enhanced)
 edge_connectivity = check_edge_connectivity(enhanced)
 # detection_confident = is_detection_confident(edge_connectivity)
 llm_ready = prepare_for_llm(enhanced)
-save_img(task_data_folder / "cells" / "cell_1_1_llm_ready.png", llm_ready)
+save_img(task_data_folder / "cells" / f"{name_img}_llm_ready.png", llm_ready)
