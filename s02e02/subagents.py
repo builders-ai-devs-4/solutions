@@ -28,10 +28,7 @@ PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 char_classify_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "char_classify_prompt.md"
                      ).read_text(encoding="utf-8")
 VALID_CHARS = set("│─└┘┌┐├┤┬┴┼")
-# _classify_llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=10, temperature=0)
-# _classify_llm = ChatOpenAI(model="gpt-5-mini", max_tokens=500, temperature=0)
-# _classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
-# _classify_llm = ChatOpenAI(model="gpt-5", temperature=0)
+
 _classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 def classify_cell(image_path: str) -> str:
