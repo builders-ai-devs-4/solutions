@@ -14,7 +14,7 @@ def _log_dir() -> Path:
 
 
 agent_logger = get_logger("agent", log_dir=_log_dir(), log_stem="agent")
-api_logger   = get_logger("api",   log_dir=_log_dir(), log_stem="api")
+# api_logger   = get_logger("api",   log_dir=_log_dir(), log_stem="api")
 
 
 class LoggerCallbackHandler(BaseCallbackHandler):

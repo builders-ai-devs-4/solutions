@@ -35,8 +35,19 @@ os.environ["FAILURE_LOG_URL"] = str(failure_log_url)
 
 from loggers import LoggerCallbackHandler, agent_logger
 
+user_prompt_template = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
+supervisor_system = (parent_folder_path/ "prompts" / "supervisor_system.md").read_text(encoding="utf-8")
+
+MAX_TOOL_ITERATIONS = 10
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 22 + 2  # 222
+
 if __name__ == "__main__":
     
-    agent_logger.info(f"[task] Starting task: {TASK_NAME}")
     
-    save_file(failure_log_url, task_data_folder, override=True)
+    agent_logger.info(f"[task] Starting task: {TASK_NAME}")
+    result = supervisor.invoke(
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        config=SUPERVISOR_CONFIG,
+    )
+    agent_logger.info(f"[supervisor] {result['messages'][-1].content}")
+    

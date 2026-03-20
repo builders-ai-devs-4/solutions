@@ -1,15 +1,17 @@
 from pathlib import Path
 import re
 import sys
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 from langchain_core.tools import tool
 import os
 from pydantic import BaseModel, Field
 import requests
 from langchain_core.callbacks import BaseCallbackHandler
-from modules.grid_detector import get_grid_cells
 from modules.tiktoken import encode_prompt
-from modules.models import AnswerModel, RotateCellInput, SolutionUrlRequest
+from modules.models import AnswerModel, SolutionUrlRequest
+from datetime import datetime, date
+
+from s02e03.log_filters import keyword_search, severity_filter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -22,13 +24,16 @@ import json
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
 TASK_NAME          = os.environ["TASK_NAME"]
 SOLUTION_URL        = os.environ["SOLUTION_URL"]
-MAP_URL             = os.environ["MAP_URL"]
-MAP_RESET_URL       = os.environ["MAP_RESET_URL"]
+
 DATA_FOLDER_PATH    = os.environ["DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
+FAILURE_LOG = os.getenv('SOURCE_URL1')
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
+MAX_TOOL_ITERATIONS = 10  # 10 requests + reset + download CSV ~ 12 tool calls
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 22 + 2  # 222
+
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
@@ -41,58 +46,30 @@ def scan_flag(text: str) -> Optional[str]:
         return match.group(0)
     agent_logger.info(f"[scan_flag] no flag in text (len={len(text)})")
     return None
-   
+
 @tool
-def get_filename(url: str) -> str:
-    """Extracts a filename from a URL, using the last path segment or a default name."""
+def get_url_filename(url: str = None) -> str:
+    """
+    Extracts the filename from a URL string.
+    Args:
+        url: The URL to extract the filename from.
+    Returns:
+        The filename as a string.
+    """
     filename = get_filename_from_url(url)
+    agent_logger.info(f"[get_url_filename] filename={filename} url={url}")
+    
     return filename
 
 @tool
-def save_file_from_url(url: str, folder: str) -> Path | None:
+def save_file_from_url(url: str, folder: str, prefix: str = "", suffix: str = "") -> Path | None:
     """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
     folder_path = Path(folder)
     folder_path.mkdir(parents=True, exist_ok=True)
     agent_logger.info(f"[save_file_from_url] url={url} folder={folder_path}")
-    path = save_file(url, folder_path, override=True)
+    path = save_file(url, folder_path, override=True, prefix=prefix, suffix=suffix)
     agent_logger.info(f"[save_file_from_url] saved_to={path}")
     return path
-
-@tool("rotate_cell",
-      description="Rotates a single grid cell 90 degrees clockwise. Use ROW and COL index (1-3).",
-      args_schema=RotateCellInput)
-def rotate_cell(col: int, row: int) -> dict:
-    agent_logger.info(f"[rotate_cell] input col={col} row={row}")
-    payload = SolutionUrlRequest(
-        apikey=AI_DEVS_SECRET,
-        task=TASK_NAME,
-        answer=AnswerModel(rotate=f"{col}x{row}")
-    )
-    response = requests.post(
-        SOLUTION_URL,
-        json=payload.model_dump()
-    )
-    agent_logger.info(f"[rotate_cell] sent rotate={payload.answer.rotate} status={response.status_code}")
-    agent_logger.info(f"[rotate_cell] {response.content}")
-    agent_logger.debug(f"[rotate_cell] Response headers: {dict(response.headers)}")
-    if not response.ok:
-        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
-        agent_logger.error(f"[rotate_cell] {response.status_code} body={error_body}")
-        return error_body
-    return response.json()
-
-@tool
-def reset_map():
-    """Sends a request to reset the map to its initial state."""
-    agent_logger.info(f"[reset_map] calling {MAP_RESET_URL}")
-    response = requests.get(MAP_RESET_URL)
-    agent_logger.info(f"[reset_map] Map reset response: {response.status_code}")
-    agent_logger.debug(f"[reset_map] Response headers: {dict(response.headers)}")
-    if not response.ok:
-        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
-        agent_logger.error(f"[reset_map] {response.status_code} body={error_body}")
-        return error_body
-    return response.status_code == 200
 
 @tool
 def get_file_list(folder: str, filter: str = "") -> list[str]:
@@ -136,78 +113,76 @@ def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     return count
 
 @tool
-def get_grid_cells_frome_image(image_path: str) -> str:
-    """Detect grid lines in the wiring diagram image, split it into cells, save them to disk, and return the folder path."""
-    agent_logger.info(f"[get_grid_cells_frome_image] image_path={image_path}")
-    cells_dir = get_grid_cells(image_path)
-    agent_logger.info(f"[get_grid_cells_frome_image] cells_dir={cells_dir}")
-    return cells_dir
+def get_current_datetime(cron: str) -> str:
+    """
+    Returns the current date, time, or full datetime as an ISO string.
+    Args:
+        cron: 'date' for date, 'time' for time, anything else for full datetime.
+    Returns:
+        ISO formatted string of the requested value.
+    """
+    if cron == "date":
+        result = date.today().isoformat()
+    elif cron == "time":
+        result = datetime.now().time().isoformat()
+    else:
+        result = datetime.now().isoformat()
+    agent_logger.info(f"[get_current_datetime] result={result} cron={cron}")
+    return result
 
-ROTATION_MAP = {
-    "│": {1: "─", 2: "│", 3: "─"},
-    "─": {1: "│", 2: "─", 3: "│"},
-    "└": {1: "┌", 2: "┐", 3: "┘"},
-    "┌": {1: "┐", 2: "┘", 3: "└"},
-    "┐": {1: "┘", 2: "└", 3: "┌"},
-    "┘": {1: "└", 2: "┌", 3: "┐"},
-    "├": {1: "┬", 2: "┤", 3: "┴"},
-    "┬": {1: "┤", 2: "┴", 3: "├"},
-    "┤": {1: "┴", 2: "├", 3: "┬"},
-    "┴": {1: "├", 2: "┬", 3: "┤"},
-    "┼": {1: "┼", 2: "┼", 3: "┼"},
-}
 
-@tool
-def apply_rotation_to_grid(
-    grid_json: str,
-    col: int,
-    row: int
+class SeverityFilterInput(BaseModel):
+    file_path: str = Field(description="Path to the log file")
+    output_file: str = Field(description="Path to the output JSON file")
+    levels: list[str] = Field(
+        default=["WARN", "ERRO", "CRIT"],
+        description="List of severity levels to search for"
+    )
+    
+class KeywordSearchInput(BaseModel):
+    file_path: str = Field(
+        description="Path to the log file OR JSON file from severity_filter"
+    )
+    keywords: list[str] = Field(
+        description="List of keywords to search for (e.g. ['power','PSU','voltage'])"
+    )
+    mode: Literal["any", "all"] = Field(
+        default="any",
+        description="'any' = line contains ANY keyword, 'all' = line contains ALL keywords"
+    )
+    use_regex: bool = Field(
+        default=False,
+        description="Whether to treat keywords as regular expressions"
+    )
+    case_sensitive: bool = Field(
+        default=False,
+        description="Whether search should be case sensitive"
+    )
+
+@tool(args_schema=SeverityFilterInput)
+def severity_log_filter(
+    file_path: str,
+    output_file: str,
+    levels: list[str] = ["WARN", "ERRO", "CRIT"],
 ) -> str:
-    """Apply a single 90° CW rotation to an in-memory grid state.
-    Updates the symbol at (row, col) according to rotation rules.
-    Returns the updated grid as JSON string.
-    
-    Args:
-        grid_json: current grid as JSON string, e.g. '[["┌","─"],["│","┘"]]'
-        col: 1-based column index (1-3)
-        row: 1-based row index (1-3)
-    
-    Returns:
-        Updated grid as JSON string.
     """
-    grid = json.loads(grid_json)
-    r, c = row - 1, col - 1
-    current_symbol = grid[r][c]
-    grid[r][c] = ROTATION_MAP.get(current_symbol, {}).get(1, current_symbol)
-    agent_logger.info(f"[apply_rotation_to_grid] ({row},{col}) {current_symbol} → {grid[r][c]}")
-    return json.dumps(grid, ensure_ascii=False)
-
-_failed_plans: list[dict] = []
-
-@tool
-def remember_failed_plan(grid_json: str, plan_json: str, reason: str) -> str:
-    """Store a rotation plan that was attempted but did not yield a flag.
-    
-    Args:
-        grid_json: initial grid state before the plan was executed
-        plan_json: list of rotations attempted, e.g. '[{"row":1,"col":1,"times":2}]'
-        reason: short description why it failed, e.g. 'no flag after 8 rotations'
-    Returns:
-        Confirmation string.
+    First pass: filters logs by severity level using regex.
+    Saves results to a JSON file and returns them directly.
     """
-    _failed_plans.append({
-        "grid": grid_json,
-        "plan": plan_json,
-        "reason": reason
-    })
-    agent_logger.info(f"[remember_failed_plan] total={len(_failed_plans)} reason={reason}")
-    return f"Plan stored. Total failed plans: {len(_failed_plans)}"
+    severity_filter(file_path=file_path, output_file=output_file, levels=levels)
 
-
-@tool
-def get_failed_plans() -> str:
-    """Retrieve all previously failed rotation plans as JSON.
-    Use this when planning new rotations to avoid repeating failed strategies.
-    Returns JSON string with list of failed plans."""
-    import json
-    return json.dumps(_failed_plans, ensure_ascii=False)
+@tool(args_schema=KeywordSearchInput)
+def keyword_log_search(
+    file_path: str,
+    keywords: list[str],
+    mode: Literal["any", "all"] = "any",
+    use_regex: bool = False,
+    case_sensitive: bool = False,
+) -> str:
+    keyword_search(
+        file_path=file_path,
+        keywords=keywords,
+        mode=mode,
+        use_regex=use_regex,
+        case_sensitive=case_sensitive
+    )
