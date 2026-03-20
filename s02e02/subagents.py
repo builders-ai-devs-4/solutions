@@ -35,17 +35,17 @@ VALID_CHARS = set("│─└┘┌┐├┤┬┴┼")
 _classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 def classify_cell(image_path: str) -> str:
-    # W pełni odcinamy modele OpenAI dla tego zadania.
+    # We fully disconnect OpenAI models for this task.
     image_path = Path(image_path)
     
     try:
-        # 1. Przygotowujemy obrazek (biała, solidna rura na czarnym tle)
+        # 1. Prepare the image (white, solid pipe on black background)
         img = preprocess_cell(str(image_path))
         
-        # 2. Sprawdzamy matematycznie, w które ściany uderza biel
+        # 2. Mathematically check which edges are hit by white
         edges = check_edge_connectivity(img)
         
-        # 3. Tłumaczymy to na znak z Twojego słownika
+        # 3. Translate this to a character from your dictionary
         char = edges_to_char(edges)
         
         agent_logger.info(f"[classify_cell] {image_path.name} -> edges={edges} char='{char}'")
@@ -80,7 +80,7 @@ def classify_cell_llm(image_path: str) -> str:
     if match and match.group(1) in VALID_CHARS:
         char = match.group(1)
     else:
-        # Fallback: znajdź jakikolwiek prawidłowy znak w całej odpowiedzi
+        # Fallback: find any valid character in the entire response
         valid_found = [c for c in result if c in VALID_CHARS]
         char = valid_found[-1] if valid_found else None
     
@@ -89,7 +89,7 @@ def classify_cell_llm(image_path: str) -> str:
             f"[classify_cell] {image_path.name} -> UNKNOWN raw='{result}' "
             f"— cell could not be classified"
         )
-        return "?"  # jawny sygnał błędu, agent może go wykryć w promptcie
+        return "?"  # explicit error signal, agent can detect it in the prompt
     
     agent_logger.info(f"[classify_cell] {image_path.name} -> raw='{result}' char='{char}'")
     return char
