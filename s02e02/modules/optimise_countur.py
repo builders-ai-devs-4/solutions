@@ -1,26 +1,36 @@
 
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 
 def preprocess_cell(img_path: str) -> np.ndarray:
-    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     
-    # 1. Resize do stałego rozmiaru (np. 128x128)
+# Wczytujemy obraz
+    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise ValueError(f"Nie udało się wczytać: {img_path}")
+        
     img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_CUBIC)
     
-    # 2. Binaryzacja adaptacyjna (lepsza niż stały próg przy nierównym oświetleniu)
-    img = cv2.adaptiveThreshold(
-        img, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV,
-        blockSize=15, C=5
-    )
+    # 1. Klasyczna binaryzacja (zamiast adaptacyjnej)
+    # Czarne krawędzie rury (wartości ok. 0-50) stają się BIAŁE (255)
+    # Szare/białe tło staje się CZARNE (0)
+    _, img = cv2.threshold(img, 80, 255, cv2.THRESH_BINARY_INV)
     
-    # 3. Morphological cleanup — usuwa szum, wypełnia przerwy w liniach
-    kernel = np.ones((2, 2), np.uint8)
-    img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)  # scala przerwy
-    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)   # usuwa szum
+    # 2. EKSTREMALNE ZAMKNIĘCIE (Wypełnienie)
+    # Zwiększamy kernel do 35x35. To potężny "pędzel", który na 100% stopi
+    # ze sobą nawet bardzo odległe równoległe krawędzie rury.
+    kernel_fill = cv2.getStructuringElement(cv2.MORPH_RECT, (35, 35))
+    img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel_fill)
+    
+    # 3. DEBUGOWANIE - zapiszmy to, co widzi komputer!
+    # Zapisze obrazek obok oryginału, dodając do nazwy "_debug.png"
+    debug_dir = Path(img_path).parent / 'debug'
+    debug_dir.mkdir(exist_ok=True)
+    debug_path = debug_dir / (Path(img_path).stem + "_debug.png")
+    cv2.imwrite(str(debug_path), img)
     
     return img
 
@@ -37,15 +47,6 @@ def enhance_lines(img: np.ndarray) -> np.ndarray:
     return combined
 
 def check_edge_connectivity(img: np.ndarray, threshold=0.15) -> dict:
-    # h, w = img.shape
-    # margin = int(min(h, w) * threshold)  # ~15% szerokości komórki
-    
-    # return {
-    #     'TOP':    img[:margin, :].max() > 127,
-    #     'BOTTOM': img[-margin:, :].max() > 127,
-    #     'LEFT':   img[:, :margin].max() > 127,
-    #     'RIGHT':  img[:, -margin:].max() > 127,
-    # }
     
     # Powyższy kod zakłada, że do tej funkcji trafia obraz po binaryzacji, gdzie linie są białe, a tło czarne. Upewnij się, że tak jest na tym etapie w Twoim potoku!
     h, w = img.shape

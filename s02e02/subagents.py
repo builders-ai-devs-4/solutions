@@ -13,10 +13,13 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.messages import SystemMessage, HumanMessage
 import re
 
+from modules.optimise_countur import check_edge_connectivity, check_edge_connectivity, edges_to_char, preprocess_cell
+
+
 prompt_logger = get_logger("prompt", log_dir=_log_dir(), log_stem="prompt")
 
 MAX_TOOL_ITERATIONS = 10  # 10 requests + reset + download CSV ~ 12 tool calls
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 16 + 2  # 162
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 22 + 2  # 222
 
 MAP_URL = os.environ["MAP_URL"]
 MAP_RESET_URL = os.environ["MAP_RESET_URL"]
@@ -31,8 +34,28 @@ VALID_CHARS = set("│─└┘┌┐├┤┬┴┼")
 # _classify_llm = ChatOpenAI(model="gpt-5", temperature=0)
 _classify_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
-
 def classify_cell(image_path: str) -> str:
+    # W pełni odcinamy modele OpenAI dla tego zadania.
+    image_path = Path(image_path)
+    
+    try:
+        # 1. Przygotowujemy obrazek (biała, solidna rura na czarnym tle)
+        img = preprocess_cell(str(image_path))
+        
+        # 2. Sprawdzamy matematycznie, w które ściany uderza biel
+        edges = check_edge_connectivity(img)
+        
+        # 3. Tłumaczymy to na znak z Twojego słownika
+        char = edges_to_char(edges)
+        
+        agent_logger.info(f"[classify_cell] {image_path.name} -> edges={edges} char='{char}'")
+        return char
+        
+    except Exception as e:
+        agent_logger.error(f"[classify_cell] Failed local CV processing for {image_path.name}: {e}")
+        return "?"
+    
+def classify_cell_llm(image_path: str) -> str:
     # Returns one Unicode box-drawing char for the given cell image.
     image_path = Path(image_path)
     b64 = read_file_base64(image_path)

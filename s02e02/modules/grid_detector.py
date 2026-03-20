@@ -205,9 +205,9 @@ def get_grid_cells(image_path: str):
         cells_path = CELLS_DIR / f"cell_{r+1}_{c+1}.png"
         cv2.imwrite(str(cells_path), cell)
         
-        preprocessed = preprocess_cell(str(cells_path))
-        enhanced = enhance_lines(preprocessed)
-        cell_for_llm = prepare_for_llm(enhanced)
-        cv2.imwrite(str(cells_path), cell_for_llm)
+        # preprocessed = preprocess_cell(str(cells_path))
+        # enhanced = enhance_lines(preprocessed)
+        # cell_for_llm = prepare_for_llm(enhanced)
+        # cv2.imwrite(str(cells_path), cell_for_llm)
         agent_logger.info(f"[grid_detector] saved cell image: {str(cells_path)}")
     return str(CELLS_DIR)
