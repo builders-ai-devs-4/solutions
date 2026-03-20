@@ -16,6 +16,7 @@ from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from s02e03.subagents import call_compressor, call_seeker
 from tools import count_prompt_tokens, detect_mimetype, get_current_datetime, get_file_list, read_file, scan_flag, get_url_filename, save_file_from_url, _RECURSION_LIMIT
 
 import tiktoken
@@ -30,7 +31,7 @@ PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 FAILURE_LOG = os.getenv('SOURCE_URL1')
 
-SUPERVISOR_SYS_PROMPT = (Path(PARENT_FOLDER_PATH) / "prompts" / "supervisor_system.md"
+supervisor_sys_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "supervisor_system.md"
                      ).read_text(encoding="utf-8")
 
 SUPERVISOR_CONFIG = {
@@ -50,9 +51,11 @@ supervisor = create_agent(
         count_prompt_tokens,
         scan_flag,
         get_current_datetime,
+        call_compressor,
+        call_seeker
 
     ],
-    system_prompt=SUPERVISOR_SYS_PROMPT,
+    system_prompt=supervisor_sys_prompt,
     name="supervisor",
     checkpointer=InMemorySaver(),
 )

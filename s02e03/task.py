@@ -34,20 +34,21 @@ failure_log_url = failure_log_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["FAILURE_LOG_URL"] = str(failure_log_url)
 
 from loggers import LoggerCallbackHandler, agent_logger
+from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 
 user_prompt_template = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
-supervisor_system = (parent_folder_path/ "prompts" / "supervisor_system.md").read_text(encoding="utf-8")
+supervisor_user = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
 
 MAX_TOOL_ITERATIONS = 10
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 22 + 2  # 222
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 102
 
 if __name__ == "__main__":
     
     
     agent_logger.info(f"[task] Starting task: {TASK_NAME}")
     result = supervisor.invoke(
-        {"messages": [{"role": "user", "content": user_prompt}]},
+        {"messages": [{"role": "user", "content": supervisor_user}]},
         config=SUPERVISOR_CONFIG,
     )
-    agent_logger.info(f"[supervisor] {result['messages'][-1].content}")
+    agent_logger.info(f"[task] {result['messages'][-1].content}")
     

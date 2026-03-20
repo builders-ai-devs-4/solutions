@@ -10,7 +10,7 @@ def severity_filter(
     file_path: str,
     output_file: str,
     levels: list[str] = ["WARN", "ERRO", "CRIT"],
-) -> str:
+) -> dict:
     """
     First pass: filters logs by severity level using regex.
     Saves results to a JSON file and returns them directly.
@@ -46,7 +46,7 @@ def severity_filter(
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    return json.dumps(result, ensure_ascii=False)
+    return result
 
 def keyword_search(
     file_path: str,
@@ -54,7 +54,7 @@ def keyword_search(
     mode: Literal["any", "all"] = "any",
     use_regex: bool = False,
     case_sensitive: bool = False,
-) -> str:
+) -> dict:
     """
     Searches for keywords in a log file or in a JSON file from severity_filter.
     Detects file type automatically by extension.
@@ -93,9 +93,11 @@ def keyword_search(
         if line_matches(content)
     ]
 
-    return json.dumps({
+    result = {
         "total_candidates_scanned": len(candidate_lines),
         "total_matches": len(matches),
         "matches": matches,
-    }, ensure_ascii=False, indent=2)
+    }
+    
+    return result
 
