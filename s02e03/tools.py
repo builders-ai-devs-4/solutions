@@ -194,3 +194,29 @@ def keyword_log_search(
         case_sensitive=case_sensitive
     )
     return result
+
+@tool("send_request")
+def send_request(compressed_logs: str) -> dict:
+    """Wysyła skompresowane logi do Centrali i zwraca odpowiedź (feedback lub flagę)."""
+    agent_logger.info(f"[send_request] input logs={compressed_logs}")
+    
+    payload = SolutionUrlRequest(
+        apikey=AI_DEVS_SECRET,
+        task=TASK_NAME,
+        answer=AnswerModel(logs=compressed_logs)
+    )
+    
+    response = requests.post(
+        SOLUTION_URL,
+        json=payload.model_dump()
+    )
+    
+    agent_logger.info(f"[rotate_cell] sent rotate={payload.answer.rotate} status={response.status_code}")
+    agent_logger.info(f"[rotate_cell] {response.content}")
+    agent_logger.debug(f"[rotate_cell] Response headers: {dict(response.headers)}")
+    if not response.ok:
+        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
+        agent_logger.error(f"[rotate_cell] {response.status_code} body={error_body}")
+        return error_body
+    return response.json()
+
