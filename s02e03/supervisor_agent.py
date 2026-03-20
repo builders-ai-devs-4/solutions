@@ -17,7 +17,7 @@ from langchain_openai import ChatOpenAI
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from s02e03.subagents import call_compressor, call_seeker
-from tools import count_prompt_tokens, detect_mimetype, get_current_datetime, get_file_list, read_file, scan_flag, get_url_filename, save_file_from_url, _RECURSION_LIMIT
+from tools import count_prompt_tokens, detect_mimetype, get_current_datetime, get_file_list, read_file, scan_flag, get_url_filename, save_file_from_url, _RECURSION_LIMIT, send_request
 
 import tiktoken
 from loggers import LoggerCallbackHandler, agent_logger
@@ -46,13 +46,13 @@ supervisor = create_agent(
         save_file_from_url,
         get_url_filename,
         get_file_list,
-        read_file,
         detect_mimetype,
         count_prompt_tokens,
         scan_flag,
         get_current_datetime,
         call_compressor,
-        call_seeker
+        call_seeker,
+        send_request
 
     ],
     system_prompt=supervisor_sys_prompt,
