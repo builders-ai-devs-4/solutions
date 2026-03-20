@@ -36,11 +36,14 @@ os.environ["FAILURE_LOG_URL"] = str(failure_log_url)
 from loggers import LoggerCallbackHandler, agent_logger
 from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 
-user_prompt_template = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
-supervisor_user = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
-
-MAX_TOOL_ITERATIONS = 10
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 102
+TOKEN_LIMIT = 1450
+supervisor_user_template = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
+supervisor_user = Template(supervisor_user_template).substitute(
+    TOKEN_LIMIT=TOKEN_LIMIT,
+    FAILURE_LOG_URL=failure_log_url,
+    SOLUTION_URL=SOLUTION_URL,
+    TASK_DATA_FOLDER_PATH=task_data_folder
+    )
 
 if __name__ == "__main__":
     

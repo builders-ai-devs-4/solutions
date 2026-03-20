@@ -197,7 +197,10 @@ def keyword_log_search(
 
 @tool("send_request")
 def send_request(compressed_logs: str) -> dict:
-    """Wysyła skompresowane logi do Centrali i zwraca odpowiedź (feedback lub flagę)."""
+    """
+    Sends compressed logs to the central server and returns the response
+    (either feedback or a flag).
+    """
     agent_logger.info(f"[send_request] input logs={compressed_logs}")
     
     payload = SolutionUrlRequest(
