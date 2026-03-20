@@ -31,8 +31,8 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 FAILURE_LOG = os.getenv('SOURCE_URL1')
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
-MAX_TOOL_ITERATIONS = 10  # 10 requests + reset + download CSV ~ 12 tool calls
-_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 22 + 2  # 222
+MAX_TOOL_ITERATIONS = 10 
+_RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 102
 
 
 @tool
