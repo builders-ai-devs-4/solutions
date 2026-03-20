@@ -59,11 +59,11 @@ _seeker = create_agent(
 )
 
 @tool("seeker", description=(
-    "Użyj tego narzędzia, aby przeszukać ogromny plik logów systemowych na dysku. "
-    "Nie przekazuj tu treści logów! W parametrze 'task' przekaż precyzyjną instrukcję "
-    "dla agenta wyszukującego, np.: 'Znajdź wszystkie logi z błędami [WARN], [ERRO], [CRIT]' "
-    "albo 'Znajdź wszystkie logi zawierające słowo kluczowe WTANK07 lub dotyczące chłodzenia'. "
-    "Agent zwróci Ci surowe linie logów pasujące do kryteriów."
+    "Use this tool to search a very large system log file on disk. "
+    "Do not pass log contents here! In the 'task' parameter provide a precise instruction "
+    "for the searching agent, e.g.: 'Find all logs with errors [WARN], [ERRO], [CRIT]' "
+    "or 'Find all logs containing the keyword WTANK07 or related to cooling'. "
+    "The agent will return raw log lines that match the criteria."
 ))
 def call_seeker(task: str) -> str:
     agent_logger.info(f"[call_seeker] task={task}")
@@ -89,11 +89,14 @@ tools=[count_prompt_tokens, scan_flag],
 )
 
 @tool("compressor", description=(
-    "Użyj tego narzędzia do sformatowania i drastycznej kompresji surowych logów, "
-    "aby zmieściły się w limicie 1500 tokenów. W parametrze 'task' musisz przekazać "
-    "ZARÓWNO surowe linie logów otrzymane od Seekera, JAK I instrukcje odnośnie kompresji "
-    "(np. 'Skompresuj te logi. Pamiętaj, żeby zachować informacje o podzespole WSTPOOL2, "
-    "bo prosiła o to centrala: [TU WKLEJ SUROWE LINIE]'). Agent zwróci sformatowany tekst."
+    "Use this tool to format and heavily compress raw logs. "
+    "In the 'task' parameter you MUST provide THREE items: "
+    "1) Raw log lines obtained from the Seeker. "
+    "2) The current TOKEN LIMIT you received in your instructions (e.g., in the User Prompt). "
+    "3) Compression instructions and guidelines (e.g., what to preserve based on feedback from Central). "
+    "Example usage: 'Compress these logs: [PASTE_LOGS_HERE]. Preserve information about WSTPOOL2. "
+    "Absolute limit is [INSERT_YOUR_LIMIT] tokens.' "
+    "The agent will return formatted, reduced text."
 ))
 def call_compressor(task: str) -> str:
     agent_logger.info(f"[call_compressor] task={task}")
