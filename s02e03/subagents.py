@@ -42,8 +42,8 @@ PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 FAILURE_LOG = os.getenv('SOURCE_URL1')
 
-seeker_system = (PARENT_FOLDER_PATH / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
-compressor_system = (PARENT_FOLDER_PATH / "prompts" / "compressor_system.md").read_text(encoding="utf-8")
+seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
+compressor_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "compressor_system.md").read_text(encoding="utf-8")
 
 SEEKER_CONFIG = {
     "callbacks": [LoggerCallbackHandler(agent_logger)],
@@ -72,7 +72,7 @@ def call_seeker(task: str) -> str:
         config=SEEKER_CONFIG,
     )
     answer = result["messages"][-1].content
-    agent_logger.info(f"[call_seeker] {answer}")
+    agent_logger.info(f"[call_seeker] report result")
     return answer
     
 COMPRESSOR_CONFIG = {
@@ -105,5 +105,5 @@ def call_compressor(task: str) -> str:
         config=COMPRESSOR_CONFIG,
     )
     answer = result["messages"][-1].content
-    agent_logger.info(f"[call_compressor] {answer}")
+    agent_logger.info(f"[call_compressor] report reult")
     return answer

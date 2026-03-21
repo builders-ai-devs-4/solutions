@@ -11,14 +11,14 @@ from modules.tiktoken import encode_prompt
 from modules.models import AnswerModel, SolutionUrlRequest
 from datetime import datetime, date
 
-from s02e03.log_filters import keyword_search, severity_filter
+from log_filters import keyword_search, severity_filter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from libs.filetype_detect import detect_file_type
 from libs.generic_helpers import get_filename_from_url, read_file_base64, read_file_text, save_file
 import tiktoken
-from loggers import agent_logger, api_logger
+from loggers import agent_logger
 import json
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
@@ -109,7 +109,7 @@ def detect_mimetype(file_path: Path) -> str:
 def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     """Count the number of tokens in a prompt for budget tracking."""
     _, count = encode_prompt(prompt, model_name)
-    agent_logger.info(f"[count_prompt_tokens] model={model_name} tokens={count}")
+    agent_logger.info(f"[count_prompt_tokens] tokens={count}")
     return count
 
 @tool
