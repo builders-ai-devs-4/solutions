@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from typing import Literal
 
+
 def severity_filter(
     file_path: str,
     output_file: str,
@@ -14,10 +15,16 @@ def severity_filter(
     """
     First pass: filters logs by severity level using regex.
     Saves results to a JSON file and returns them directly.
+    If the output JSON already exists, returns cached result immediately.
     """
+    output_path = Path(output_file)
+    if output_path.exists():
+        with open(output_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
     log_path = Path(file_path)
     if not log_path.exists():
-        return json.dumps({"error": f"File does not exist: {file_path}"})
+        return {"error": f"File does not exist: {file_path}"}
 
     pattern = re.compile(
         r"\b(" + "|".join(re.escape(lvl) for lvl in levels) + r")\b",
@@ -101,3 +108,46 @@ def keyword_search(
     
     return result
 
+def time_window_search(
+    file_path: str,
+    time_from: str,
+    time_to: str,
+    time_pattern: str = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}",
+) -> dict:
+    """
+    Pobiera wszystkie linie z przedziału czasowego.
+    Zamiast zgadywać słowa kluczowe, Supervisor podaje okno: '08:26' - '08:29'.
+    """
+    from datetime import datetime
+
+    time_re = re.compile(time_pattern)
+    candidates = []
+
+    src = Path(file_path)
+    if src.suffix == ".json":
+        with open(src, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        lines = [(m["line_number"], m["content"]) for m in data.get("matches", [])]
+    else:
+        with open(src, "r", encoding="utf-8", errors="replace") as f:
+            raw = f.readlines()
+        lines = [(i + 1, l.rstrip()) for i, l in enumerate(raw)]
+
+    for line_no, content in lines:
+        m = time_re.search(content)
+        if not m:
+            continue
+        try:
+            ts = datetime.fromisoformat(m.group(0))
+            t_from = datetime.fromisoformat(time_from)
+            t_to = datetime.fromisoformat(time_to)
+            if t_from <= ts <= t_to:
+                candidates.append({"line_number": line_no, "content": content})
+        except ValueError:
+            continue
+
+    return {
+        "total_candidates_scanned": len(lines),
+        "total_matches": len(candidates),
+        "matches": candidates,
+    }

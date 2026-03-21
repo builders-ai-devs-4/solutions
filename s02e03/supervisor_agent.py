@@ -46,7 +46,6 @@ supervisor = create_agent(
         save_file_from_url,
         get_url_filename,
         get_file_list,
-        detect_mimetype,
         count_prompt_tokens,
         scan_flag,
         get_current_datetime,

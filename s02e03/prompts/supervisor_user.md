@@ -14,7 +14,10 @@ I am initiating the diagnostic procedure. Your overarching goal is to analyze th
    * If the time is 00:00 (or a day change occurred since the last check), the previously downloaded data is outdated - you must absolutely download a new log file from `FAILURE_LOG_URL`.
    * Always use the available tools to extract the base file name (FILE_NAME) from the `FAILURE_LOG_URL`.
    * The log file for a given day must always be saved in the `TASK_DATA_FOLDER_PATH` directory under a name formatted as: `FILE_NAME_YYYY-MM-DD.log` (using the current date). Check if such a file already exists before you start downloading.
-2. **First Iteration (General Phase):** Delegate to the Seeker agent the task of extracting key events marked as errors. Pass the received result to the Compressor agent for formatting and maximum compression. Inform the Compressor about the strict limit defined by `TOKEN_LIMIT`.
+2. **First Iteration (General Phase):** Delegate to the Seeker the task of
+   extracting key events marked as errors, saving results to a JSON file.
+   Pass the OUTPUT FILE PATH (not the content) to the Compressor for
+   formatting and compression. Inform it of the TOKEN_LIMIT.
 3. **Reporting:** Send the compressed log package to `SOLUTION_URL` and analyze the received feedback.
 4. **Diagnostic Loop (Detailed Iterations):** Continue the process iteratively. Utilize the information from Central Command to guide the Seeker agent in acquiring missing data about specific components or specific timeframes. If Central Command repeats the same feedback, do not change the subject – drill down on the same problem by instructing the Seeker to use new synonyms or time-based regex. Instruct the Compressor agent to re-compress the updated log set, strictly ensuring that the result never exceeds the `TOKEN_LIMIT` value before the next submission.
 

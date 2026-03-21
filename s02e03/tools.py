@@ -11,9 +11,9 @@ from modules.tiktoken import encode_prompt
 from modules.models import AnswerModel, SolutionUrlRequest
 from datetime import datetime, date
 
-from log_filters import keyword_search, severity_filter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from log_filters import keyword_search, severity_filter, time_window_search
 
 from libs.filetype_detect import detect_file_type
 from libs.generic_helpers import get_filename_from_url, read_file_base64, read_file_text, save_file
@@ -93,10 +93,10 @@ def read_file(file_path: str) -> str:
         raise FileNotFoundError(f"File not found: {file_path}")
     info = detect_file_type(file_path)
     agent_logger.info(f"[read_file] path={file_path} kind={info.final_kind}")
-    if info.final_kind == "text":
-        return read_file_text(file_path)
-    else:
+    if info.final_kind == "image":
         return read_file_base64(file_path)
+    else:
+        return read_file_text(file_path)
     
 @tool
 def detect_mimetype(file_path: Path) -> str:
@@ -174,6 +174,7 @@ def severity_log_filter(
     a summary and the matched lines.
     """
     result = severity_filter(file_path=file_path, output_file=output_file, levels=levels)
+    agent_logger.info(f"[severity_log_filter] Executing severity log filter file={file_path}")
     return result
 
 @tool(args_schema=KeywordSearchInput)
@@ -198,7 +199,35 @@ def keyword_log_search(
         use_regex=use_regex,
         case_sensitive=case_sensitive
     )
+    agent_logger.info(f"[keyword_log_search] Executing keyword search file={file_path}")
+    
     return result
+
+class TimeWindowInput(BaseModel):
+    file_path: str = Field(description="Path to log file or severity JSON")
+    time_from: str = Field(description="Start of time window, ISO format e.g. '2026-03-21 08:26:00'")
+    time_to: str = Field(description="End of time window, ISO format e.g. '2026-03-21 08:29:00'")
+    time_pattern: str = Field(
+        default=r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}",
+        description="Regex pattern matching timestamps in log lines"
+    )
+
+@tool(args_schema=TimeWindowInput)
+def time_window_log_search(
+    file_path: str,
+    time_from: str,
+    time_to: str,
+    time_pattern: str = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}",
+) -> dict:
+    """
+    TIME-WINDOW TOOL. Use instead of keyword search when you already know
+    WHEN an event occurred (e.g. a sensor reported error at 08:28).
+    Fetch everything from 08:26-08:29 — guaranteed to contain the root cause.
+    Much faster than guessing keywords.
+    """
+    agent_logger.info(f"[time_window_log_search] Executing time window search: from={time_from} to={time_to} pattern='{time_pattern}' file={file_path}")
+
+    return time_window_search(file_path, time_from, time_to, time_pattern)
 
 @tool("send_request")
 def send_request(compressed_logs: str) -> dict:

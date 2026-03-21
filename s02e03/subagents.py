@@ -28,6 +28,7 @@ from tools import (
     save_file_from_url,
     _RECURSION_LIMIT,
     severity_log_filter,
+    time_window_log_search,
 )
 
 import tiktoken
@@ -53,20 +54,21 @@ SEEKER_CONFIG = {
 _seeker = create_agent(
     model="openai:gpt-5-mini",
 
-    tools=[keyword_log_search,severity_log_filter],
+    tools=[keyword_log_search, severity_log_filter, time_window_log_search],
     system_prompt=seeker_system,
     name="seeker",
 )
 
 @tool("seeker", description=(
     "Use this tool to search a very large system log file on disk. "
-    "Do not pass log contents here! In the 'task' parameter provide a precise instruction "
-    "for the searching agent, e.g.: 'Find all logs with errors [WARN], [ERRO], [CRIT]' "
-    "or 'Find all logs containing the keyword WTANK07 or related to cooling'. "
-    "The agent will return raw log lines that match the criteria."
+    "IMPORTANT: In a single call, pass ALL related keywords at once "
+    "(e.g. synonyms, module IDs, related subsystems). "
+    "Do NOT make separate calls for 'leak', then 'water', then 'WTANK' — "
+    "pass them all in one task. "
+    "If you know the approximate time of the event, use time_window instead of keywords. "
+    "Provide precise instruction in the 'task' parameter."
 ))
 def call_seeker(task: str) -> str:
-    agent_logger.info(f"[call_seeker] task={task}")
     result = _seeker.invoke(
         {"messages": [{"role": "user", "content": task}]},
         config=SEEKER_CONFIG,
@@ -83,27 +85,28 @@ COMPRESSOR_CONFIG = {
 _compressor = create_agent(
     model="openai:gpt-5-mini",
 
-tools=[count_prompt_tokens, scan_flag],
+tools=[count_prompt_tokens, scan_flag, read_file],
     system_prompt=compressor_system,
     name="compressor",
 )
 
+
 @tool("compressor", description=(
-    "Use this tool to format and heavily compress raw logs. "
-    "In the 'task' parameter you MUST provide THREE items: "
-    "1) Raw log lines obtained from the Seeker. "
-    "2) The current TOKEN LIMIT you received in your instructions (e.g., in the User Prompt). "
-    "3) Compression instructions and guidelines (e.g., what to preserve based on feedback from Central). "
-    "Example usage: 'Compress these logs: [PASTE_LOGS_HERE]. Preserve information about WSTPOOL2. "
-    "Absolute limit is [INSERT_YOUR_LIMIT] tokens.' "
-    "The agent will return formatted, reduced text."
+    "Use this tool to format and compress logs. "
+    "In the 'task' parameter provide THREE items: "
+    "1) FILE PATH(S) to read — e.g. '/data/severity_2026-03-21.json' and '/data/keywords_result.json'. "
+    "   Do NOT paste raw log lines — pass file paths only. "
+    "2) The TOKEN LIMIT from your instructions. "
+    "3) Compression guidelines (what to preserve based on Central feedback). "
+    "Example: 'Read file at /data/severity.json and /data/keyword_result.json. "
+    "Preserve info about WSTPOOL2. Token limit is 500.' "
+    "The agent will read the files itself, compress and return formatted text."
 ))
 def call_compressor(task: str) -> str:
-    agent_logger.info(f"[call_compressor] task={task}")
     result = _compressor.invoke(
         {"messages": [{"role": "user", "content": task}]},
         config=COMPRESSOR_CONFIG,
     )
     answer = result["messages"][-1].content
-    agent_logger.info(f"[call_compressor] report reult")
+    agent_logger.info(f"[call_compressor] report result")
     return answer
