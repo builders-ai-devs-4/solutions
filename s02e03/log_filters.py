@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Literal
 from datetime import datetime, timedelta
+from math import floor
 
 
 # ─────────────────────────────────────────────
@@ -135,103 +136,65 @@ def keyword_search(
         "total_matches": len(matches),
         **paths,
     }
-
-def time_window_search(
-    file_path: str,
-    output_base: str,
-    time_from: str,
-    time_to: str,
-    time_pattern: str = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}",
-) -> dict:
-    time_re = re.compile(time_pattern)
-    t_from = datetime.fromisoformat(time_from)
-    t_to = datetime.fromisoformat(time_to)
-
-    candidate_lines = _load_lines(file_path)  # ← dict list {"line_number": int, "content": str}
-
-    matches = []
-    for line in candidate_lines:
-        m = time_re.search(line["content"])
-        if not m:
-            continue
-        try:
-            ts = datetime.fromisoformat(m.group(0))
-            if t_from <= ts <= t_to:
-                matches.append(line)   # ← unchanged line structure
-        except ValueError:
-            continue
-
-    paths = _save_results(output_base, matches)
-
-    return {
-        "total_candidates_scanned": len(candidate_lines),
-        "total_matches": len(matches),
-        **paths,
-    }
     
-def chunk_by_gap(
+def chunk_by_time_window(
     file_path: str,
     output_dir: str,
-    gap_minutes: int = 10,
+    window_minutes: int = 10,
+    time_pattern: str = r"\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
 ) -> dict:
+    """Dzieli plik logów na chunki o stałym oknie czasowym (relatywnym od pierwszego wpisu).
+
+    Każdy chunk trafia do osobnego pliku chunk_NNN.log w output_dir.
+    Linie bez znacznika czasu są dołączane do ostatniego aktywnego chunka.
+
+    Args:
+        file_path:       Ścieżka do pliku .log lub .json (wynik severity_filter).
+        output_dir:      Katalog docelowy dla plików chunk_NNN.log.
+        window_minutes:  Rozmiar okna w minutach (domyślnie 10).
+        time_pattern:    Regex do wyciągania znacznika czasu z linii.
+
+    Returns:
+        dict z listą chunks: [{chunk_index, file, line_count}, ...]
+    """
+    time_re = re.compile(time_pattern)
+    src = Path(file_path)
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    raw_lines = _load_lines(file_path)
+    for entry in raw_lines:
+        content = entry["content"]
 
-    ts_re = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
-    candidate_lines = _load_lines(file_path)  # ← lista słowników
+    window_secs = window_minutes * 60
+    t0: datetime | None = None
+    current_bucket: int = -1
+    buckets: dict[int, list[str]] = {}
 
-    # Przypisz timestamp — linie bez ts dziedziczą ostatni znany
-    parsed = []
-    last_ts = None
-    for line in candidate_lines:
-        m = ts_re.search(line["content"])
+
+    for _line_no, content in raw_lines:
+        m = time_re.search(content)
         if m:
             try:
-                last_ts = datetime.fromisoformat(m.group(0))
+                ts = datetime.fromisoformat(m.group(0))
+                if t0 is None:
+                    t0 = ts
+                current_bucket = floor((ts - t0).total_seconds() / window_secs)
             except ValueError:
                 pass
-        parsed.append({**line, "ts": last_ts})   # ← unchanged line structure + ts
+        if current_bucket < 0:
+            current_bucket = 0
+        buckets.setdefault(current_bucket, []).append(content)
 
-    # Tnij po gapach
-    gap = timedelta(minutes=gap_minutes)
-    incidents, current = [], []
-
-    for entry in parsed:
-        if not current:
-            current.append(entry)
-            continue
-        prev_ts = current[-1]["ts"]
-        if entry["ts"] and prev_ts and (entry["ts"] - prev_ts) > gap:
-            incidents.append(current)
-            current = []
-        current.append(entry)
-
-    if current:
-        incidents.append(current)
-
-    # Save every incident
-    summary = []
-    for idx, incident in enumerate(incidents, start=1):
-        output_base = str(out_dir / f"incident_{idx:03d}")
-        paths = _save_results(output_base, incident)
-
-        timestamps = [e["ts"] for e in incident if e["ts"]]
-        line_numbers = [e["line_number"] for e in incident]
-
-        summary.append({
-            "incident": idx,
-            "count": len(incident),
-            "line_numbers": line_numbers,
-            "time_start": timestamps[0].isoformat() if timestamps else None,
-            "time_end": timestamps[-1].isoformat() if timestamps else None,
-            **paths,
+    chunk_files = []
+    for idx in sorted(buckets.keys()):
+        chunk_name = f"chunk_{idx + 1:03d}.log"
+        chunk_path = out_dir / chunk_name
+        with open(chunk_path, "w", encoding="utf-8") as f:
+            f.writelines(line + "\n" for line in buckets[idx])
+        chunk_files.append({
+            "chunk_index": idx + 1,
+            "file": str(chunk_path),
         })
 
-    return {
-        "total_lines": len(parsed),
-        "total_incidents": len(incidents),
-        "gap_minutes": gap_minutes,
-        "output_dir": str(out_dir),
-        "incidents": summary,
-    }
-    
+    return {"chunks": chunk_files}
+
