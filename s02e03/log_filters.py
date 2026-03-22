@@ -41,18 +41,16 @@ def _save_results(output_base: str, matches: list[dict]) -> dict:
     - .json → metadane (line_number, content, ...) — dla kolejnych filtrów
     Zwraca słownik z obiema ścieżkami.
     """
-    base = Path(output_base).with_suffix("")  # usuń rozszerzenie jeśli jest
+    base = Path(output_base).with_suffix("")
     log_path = base.with_suffix(".log")
     json_path = base.with_suffix(".json")
 
-    # Płaski .log — tylko oryginalna treść linii, bez żadnych tagów
     with open(log_path, "w", encoding="utf-8") as f:
         f.writelines(m["content"] + "\n" for m in matches)
 
-    # .json — pełne metadane
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(
-            {"total_matches": len(matches), "matches": matches},
+            {"matches": matches},
             f, ensure_ascii=False, indent=2
         )
 
@@ -87,19 +85,15 @@ def severity_filter(
             matches.append({
                 "line_number": i + 1,
                 "content": line.rstrip(),
-                "matched_level": m.group(1).upper(),
             })
 
     paths = _save_results(output_file, matches)   # Compressor needs .log  and .json for next filters
 
     result = {
-        "total_lines_scanned": len(all_lines),
-        "total_matches": len(matches),
         **paths,   # result_log + result_json
     }
 
     return result
-
 
 def keyword_search(
     file_path: str,
@@ -132,8 +126,6 @@ def keyword_search(
     paths = _save_results(output_base, matches)  # ← wywołujący decyduje gdzie
 
     return {
-        "total_candidates_scanned": len(candidate_lines),
-        "total_matches": len(matches),
         **paths,
     }
     
@@ -141,7 +133,7 @@ def chunk_by_time_window(
     file_path: str,
     output_dir: str,
     window_minutes: int = 10,
-    time_pattern: str = r"\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
+    time_pattern: str = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
 ) -> dict:
     """Dzieli plik logów na chunki o stałym oknie czasowym (relatywnym od pierwszego wpisu).
 
@@ -157,21 +149,23 @@ def chunk_by_time_window(
     Returns:
         dict z listą chunks: [{chunk_index, file, line_count}, ...]
     """
+  
     time_re = re.compile(time_pattern)
-    src = Path(file_path)
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    
+
     raw_lines = _load_lines(file_path)
-    for entry in raw_lines:
-        content = entry["content"]
+    if not raw_lines:
+        raise ValueError(f"No lines found in file: {file_path}")
 
     window_secs = window_minutes * 60
     t0: datetime | None = None
     current_bucket: int = -1
     buckets: dict[int, list[str]] = {}
 
-
-    for _line_no, content in raw_lines:
+    for entry in raw_lines:
+        content = entry["content"]
         m = time_re.search(content)
         if m:
             try:
