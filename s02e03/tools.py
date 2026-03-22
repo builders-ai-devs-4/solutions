@@ -13,7 +13,7 @@ from datetime import datetime, date
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from log_filters import keyword_search, severity_filter, time_window_search
+from log_filters import chunk_by_time_window, keyword_search, severity_filter, time_window_search
 
 from libs.filetype_detect import detect_file_type
 from libs.generic_helpers import get_filename_from_url, read_file_base64, read_file_text, save_file
@@ -228,6 +228,42 @@ def time_window_log_search(
     agent_logger.info(f"[time_window_log_search] Executing time window search: from={time_from} to={time_to} pattern='{time_pattern}' file={file_path}")
 
     return time_window_search(file_path, time_from, time_to, time_pattern)
+
+class ChunkByTimeWindowInput(BaseModel):
+    file_path: str = Field(
+        description="Path to .log file or .json from severity_log_filter"
+    )
+    output_dir: str = Field(
+        description="Directory where chunk_NNN.log files will be saved"
+    )
+    window_minutes: int = Field(
+        default=10,
+        description="Size of each time window in minutes (relative to first log entry)"
+    )
+
+
+@tool(args_schema=ChunkByTimeWindowInput)
+def chunk_log_by_time(
+    file_path: str,
+    output_dir: str,
+    window_minutes: int = 10,
+) -> dict:
+    """
+    PRE-PROCESSING TOOL. Splits a log file into fixed-size time chunks (chunk_NNN.log).
+    Use this BEFORE sending logs to the Compressor — each chunk fits within
+    the Compressor context window.
+    Returns a list of chunk file paths: {"chunks": [{"chunk_index": 1, "file": "..."}]}
+    """
+    result = chunk_by_time_window(
+        file_path=file_path,
+        output_dir=output_dir,
+        window_minutes=window_minutes,
+    )
+    agent_logger.info(
+        f"[chunk_log_by_time] file={file_path} window={window_minutes}min "
+        f"chunks={len(result.get('chunks', []))}"
+    )
+    return result
 
 @tool("send_request")
 def send_request(compressed_logs: str) -> dict:

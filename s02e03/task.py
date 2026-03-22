@@ -22,16 +22,28 @@ FAILURE_LOG = os.getenv('SOURCE_URL1')
 
 current_folder = Path(__file__)
 parent_folder_path  = current_folder.parent
-date_folder_path = parent_folder_path / DATA_FOLDER
+data_folder_path = parent_folder_path / DATA_FOLDER
 task_data_folder = parent_folder_path / DATA_FOLDER / TASK_NAME
 
 os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
-os.environ["DATA_FOLDER_PATH"] = str(date_folder_path)
+os.environ["DATA_FOLDER_PATH"] = str(data_folder_path)
+
+WORKSPACE       = task_data_folder / "workspace"
+SEVERITY_DIR    = WORKSPACE / "01_severity"
+KEYWORDS_DIR    = WORKSPACE / "02_keywords"
+CHUNKS_DIR      = WORKSPACE / "03_chunks"
+COMPRESSED_DIR  = WORKSPACE / "04_compressed"
 
 failure_log_template = Template(FAILURE_LOG)
 failure_log_url = failure_log_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["FAILURE_LOG_URL"] = str(failure_log_url)
+
+os.environ["WORKSPACE"] = str(WORKSPACE)
+os.environ["SEVERITY_DIR"] = str(SEVERITY_DIR)
+os.environ["KEYWORDS_DIR"] = str(KEYWORDS_DIR)
+os.environ["CHUNKS_DIR"] = str(CHUNKS_DIR)
+os.environ["COMPRESSED_DIR"] = str(COMPRESSED_DIR)
 
 from loggers import LoggerCallbackHandler, agent_logger
 from supervisor_agent import SUPERVISOR_CONFIG, supervisor
