@@ -11,10 +11,16 @@ from math import floor
 # HELPERS PRYWATNE
 # ─────────────────────────────────────────────
 
-def _load_lines(file_path: str) -> list[dict]:
+def _load_lines(file_path: str, strict_refs: bool = True) -> list[dict]:
     """
-    Wczytuje linie z .log lub .json (output severity_filter).
+    Wczytuje linie z .json lub .log.
     Zawsze zwraca listę słowników {"line_number": int, "content": str}.
+
+    Args:
+        strict_refs: True (domyślnie) — akceptuje tylko .json, gwarantuje
+                     że line_number odnosi się do failure.log.
+                     False — akceptuje .log, line_number resetuje się do 1,2,3...
+                     (używaj tylko gdy referencja do failure.log nie jest potrzebna)
     """
     src = Path(file_path)
     if src.suffix == ".json":
@@ -25,14 +31,17 @@ def _load_lines(file_path: str) -> list[dict]:
             for m in data.get("matches", [])
         ]
     else:
+        if strict_refs:
+            raise ValueError(
+                f"Expected .json to preserve failure.log line references, got: {src.suffix}. "
+                f"Pass strict_refs=False to load .log without line references."
+            )
         with open(src, "r", encoding="utf-8", errors="replace") as f:
             raw = f.readlines()
         return [
             {"line_number": i + 1, "content": line.rstrip()}
             for i, line in enumerate(raw)
         ]
-
-
 
 def _save_results(output_base: str, matches: list[dict]) -> dict:
     """
@@ -159,11 +168,12 @@ def chunk_by_time_window(
     if not raw_lines:
         raise ValueError(f"No lines found in file: {file_path}")
 
+
     window_secs = window_minutes * 60
     t0: datetime | None = None
     current_bucket: int = -1
-    buckets: dict[int, list[str]] = {}
-
+    buckets: dict[int, list[dict]] = {}
+    
     for entry in raw_lines:
         content = entry["content"]
         m = time_re.search(content)
@@ -177,18 +187,24 @@ def chunk_by_time_window(
                 pass
         if current_bucket < 0:
             current_bucket = 0
-        buckets.setdefault(current_bucket, []).append(content)
+        buckets.setdefault(current_bucket, []).append(entry)
+
 
     chunk_files = []
     for idx in sorted(buckets.keys()):
-        chunk_name = f"chunk_{idx + 1:03d}.log"
-        chunk_path = out_dir / chunk_name
-        with open(chunk_path, "w", encoding="utf-8") as f:
-            f.writelines(line + "\n" for line in buckets[idx])
+        output_base = str(out_dir / f"chunk_{idx + 1:03d}")
+        paths = _save_results(output_base, buckets[idx])
         chunk_files.append({
             "chunk_index": idx + 1,
-            "file": str(chunk_path),
+            **paths,
         })
 
     return {"chunks": chunk_files}
 
+def _validate_compression(original: list[dict], compressed: list[dict]) -> bool:
+    if len(original) != len(compressed):
+        return False
+    for orig, comp in zip(original, compressed):
+        if orig["line_number"] != comp["line_number"]:
+            return False
+    return True
