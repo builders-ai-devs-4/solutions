@@ -21,10 +21,11 @@ def get_path_from_url(url: str = None) -> str:
 
 def save_file(file_url: str, folder: Path | str, override: bool = False, prefix: str = "", suffix: str = "") -> Path:
     file_name = get_filename_from_url(file_url)
+    org_log = Path(file_name)
     if prefix:
-        file_name = f"{prefix}_{file_name}"
+        file_name = f"{prefix}_{org_log.stem}{org_log.suffix}"
     if suffix:
-        file_name = f"{file_name}_{suffix}"
+        file_name = f"{org_log.stem}_{suffix}{org_log.suffix}"
     index_md_file = Path(folder) / file_name
     index_md_file.parent.mkdir(parents=True, exist_ok=True)
     if not index_md_file.exists() or override:

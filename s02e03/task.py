@@ -55,7 +55,8 @@ supervisor_user = Template(supervisor_user_template).substitute(
     TOKEN_LIMIT=TOKEN_LIMIT,
     FAILURE_LOG_URL=failure_log_url,
     SOLUTION_URL=SOLUTION_URL,
-    TASK_DATA_FOLDER_PATH=task_data_folder
+    TASK_DATA_FOLDER_PATH=task_data_folder,
+    COMPRESSED_DIR=COMPRESSED_DIR,
     )
 
 if __name__ == "__main__":

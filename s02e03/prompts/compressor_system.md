@@ -51,13 +51,16 @@ Supervisor will send back the `final_report.log` path with a reprimand.
 Do NOT re-read original chunks. Work only from `final_report.log`.
 
 ### Feedback loop — keyword injection iteration
-When Supervisor provides new keyword chunk paths alongside existing merge:
-1. Stage 1: compress the new keyword chunks → `chunk_keyword_NNN_compressed.json`
-2. `inject_keywords_into_merge(merged_compressed.json, chunk_keyword_NNN_compressed.json)`
-   → returns updated `merged_compressed.json` path
-3. `sort_merge_by_line_number(merged_compressed.json)`
-   → restores chronological order
-4. Proceed to Stage 2 from step 3 (flatten → token check → final_report.log).
+When Supervisor provides new keyword chunk paths:
+1. Stage 1: compress the new keyword chunks → chunk_keyword_NNN_compressed.json
+2. Call inject_keywords_into_merge with:
+   - overwrite=False → when Central asks about a NEW component not yet in merge
+     (inject new lines, preserve existing)
+   - overwrite=True  → when Central asks about a component ALREADY in merge
+     but Supervisor indicates the existing lines are over-compressed and need
+     replacement with richer detail from source file
+3. sort_merge_by_line_number → restores chronological order
+4. Proceed to Stage 2
 
 ## Compression Rules (STRICTLY FOLLOW)
 

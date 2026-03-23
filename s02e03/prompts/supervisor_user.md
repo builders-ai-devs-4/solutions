@@ -1,28 +1,54 @@
 # User Prompt: Diagnostic Procedure Initialization
 
-I am initiating the diagnostic procedure. Your overarching goal is to analyze the system logs from the current shift and identify the root cause of the power plant failure.
+I am initiating the diagnostic procedure. Your overarching goal is to analyze 
+the system logs from the current shift and identify the root cause of the 
+power plant failure.
 
 ## Operational Context (External Variables):
-* **LIMIT_TOKENOW (TOKEN LIMIT):** $TOKEN_LIMIT
+* **TOKEN_LIMIT:** $TOKEN_LIMIT
 * **FAILURE_LOG_URL:** $FAILURE_LOG_URL
 * **SOLUTION_URL:** $SOLUTION_URL
 * **TASK_DATA_FOLDER_PATH:** $TASK_DATA_FOLDER_PATH
+* **COMPRESSED_DIR:** $COMPRESSED_DIR
+
 ## Required Operational Steps:
 
 1. **Initialization and File Management (CRITICAL):**
    * Check the current system date and time.
-   * If the time is 00:00 (or a day change occurred since the last check), the previously downloaded data is outdated - you must absolutely download a new log file from `FAILURE_LOG_URL`.
-   * Always use the available tools to extract the base file name (FILE_NAME) from the `FAILURE_LOG_URL`.
-   * The log file for a given day must always be saved in the `TASK_DATA_FOLDER_PATH` directory under a name formatted as: `FILE_NAME_YYYY-MM-DD.log` (using the current date). Check if such a file already exists before you start downloading.
-2. **First Iteration (General Phase):** Delegate to the Seeker the task of
-   extracting key events marked as errors, saving results to a JSON file.
-   Pass the OUTPUT FILE PATH (not the content) to the Compressor for
-   formatting and compression. Inform it of the TOKEN_LIMIT.
-3. **Reporting:** Send the compressed log package to `SOLUTION_URL` and analyze the received feedback.
-4. **Diagnostic Loop (Detailed Iterations):** Continue the process iteratively. Utilize the information from Central Command to guide the Seeker agent in acquiring missing data about specific components or specific timeframes. If Central Command repeats the same feedback, do not change the subject – drill down on the same problem by instructing the Seeker to use new synonyms or time-based regex. Instruct the Compressor agent to re-compress the updated log set, strictly ensuring that the result never exceeds the `TOKEN_LIMIT` value before the next submission.
+   * If the time is 00:00 (or a day change occurred since the last check),
+     the previously downloaded data is outdated — download a new log file
+     from `FAILURE_LOG_URL`.
+   * Use `get_url_filename` to extract FILE_STEM from `FAILURE_LOG_URL`.
+   * Save the log as `FILE_STEM_YYYY-MM-DD.log` in `TASK_DATA_FOLDER_PATH`.
+     Check with `get_file_list` whether it already exists before downloading.
+
+2. **First Pass (General Phase):**
+   * Delegate to Seeker: filter `FILE_STEM_YYYY-MM-DD.log` for severity levels
+     `[WARN]`, `[ERRO]`, `[CRIT]`. Seeker returns chunk paths.
+   * Pass chunk paths + TOKEN_LIMIT + COMPRESSED_DIR to Compressor.
+   * Compressor returns path to `final_report.log`.
+   * Use `read_file` to load `final_report.log`, then `count_prompt_tokens`.
+   * If over TOKEN_LIMIT → return `final_report.log` path to Compressor for
+     re-compression (no new Seeker call).
+   * `send_request(content)` → `scan_flag`.
+
+3. **Diagnostic Loop (Detailed Iterations):**
+   * Analyze feedback from Central Command.
+   * Delegate to Seeker: keyword search on `FILE_STEM_YYYY-MM-DD.log` using
+     broad synonyms and component IDs (min 5–6 keywords in one call).
+     If Seeker returns empty results — try wider synonyms before reporting.
+   * If Central asks about a component NOT yet in the report → pass new chunk
+     paths to Compressor with overwrite=False.
+   * If Central asks about a component already in the report but needing more
+     detail → pass new chunk paths to Compressor with overwrite=True.
+   * Always pass TOKEN_LIMIT + COMPRESSED_DIR to Compressor.
+   * `read_file` → `count_prompt_tokens` → re-compress if needed → `send_request`
+     → `scan_flag`.
+   * Repeat until `{FLG:...}` received.
 
 ## Critical Constraints:
-* You are strictly forbidden from directly reading raw log files into your own memory context.
-* All text searching, filtering, and parsing operations from the file must be absolutely delegated to sub-agents (Seeker and Compressor).
+* Never read raw log files directly into your context.
+* Never paste log content inline — always pass file paths to sub-agents.
+* Never call `send_request` without first verifying token count.
 
-The procedure concludes ONLY when the response from Central Command contains the authorization flag in the format `{FLG:...}`. Proceed with the task.
+The procedure concludes ONLY when Central Command returns `{FLG:...}`.

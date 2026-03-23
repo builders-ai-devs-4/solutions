@@ -115,6 +115,9 @@ _compressor = create_agent(
     "Saves merged_compressed.json and final_report.log to COMPRESSED_DIR. "
     "FEEDBACK LOOP ITERATION: If Central Command requests more detail, "
     "pass new keyword chunk paths AND the existing merged_compressed.json path. "
+    "Specify overwrite=False when Central asks about a NEW component not yet in merge. "
+    "Specify overwrite=True when Central asks about a component ALREADY in merge "
+    "that needs richer detail recovered from the source file. "
     "The agent injects new lines into the merge, sorts chronologically, "
     "then re-runs Stage 2. "
     "RE-COMPRESSION: If token count is still over limit after Stage 2, "
@@ -122,7 +125,9 @@ _compressor = create_agent(
     "no re-chunking. "
     "Always pass: 1) chunk path(s) or final_report.log path. "
     "2) Token limit. "
-    "Returns path to final_report.log — pass its content to send_request."
+    "3) COMPRESSED_DIR path. "
+    "4) overwrite flag (feedback loop only). "
+    "Returns path to final_report.log — read it and pass content to send_request."
 ))
 def call_compressor(task: str) -> str:
     result = _compressor.invoke(

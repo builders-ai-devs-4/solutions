@@ -356,21 +356,15 @@ def save_final_report(compressed_lines: list[dict]) -> dict:
     return paths
 
 class InjectKeywordsIntoMergeInput(BaseModel):
-    merge_path: str = Field(
+    merge_path: str = Field(...)
+    keywords_compressed_path: str = Field(...)
+    output_path: str = Field(...)
+    overwrite: bool = Field(
+        default=False,
         description=(
-            "Path to merged_compressed.json from the previous Compressor iteration. "
-            "Must contain an 'entries' list with {line_number, compressed} objects."
+            "If True, existing entries with the same line number will be "
+            "replaced by the new version. Use when recovering over-compressed lines."
         )
-    )
-    keywords_compressed_path: str = Field(
-        description=(
-            "Path to a compressed keyword chunk JSON (chunk_keyword_compressed.json). "
-            "Must contain an 'entries' list with {line_number, compressed} objects. "
-            "Compress the keyword_log_search result via Stage 1 before calling this tool."
-        )
-    )
-    output_path: str = Field(
-        description="Path where the new merged JSON (with injected lines) will be saved."
     )
 
 @tool(args_schema=InjectKeywordsIntoMergeInput)
@@ -378,23 +372,32 @@ def inject_keywords_into_merge(
     merge_path: str,
     keywords_compressed_path: str,
     output_path: str,
+    overwrite: bool = False,
 ) -> str:
     merge_lines: list[dict] = json.loads(Path(merge_path).read_text(encoding="utf-8"))
     kw_lines: list[dict] = json.loads(Path(keywords_compressed_path).read_text(encoding="utf-8"))
 
-    existing_line_numbers: set[int] = {e["line"] for e in merge_lines}
-
-    for entry in kw_lines:
-        if entry["line"] not in existing_line_numbers:
-            merge_lines.append(entry)
-            existing_line_numbers.add(entry["line"])
+    if overwrite:
+        kw_by_line = {e["line"]: e for e in kw_lines}
+        result = [kw_by_line.get(e["line"], e) for e in merge_lines]
+        new_lines = [e for e in kw_lines if e["line"] not in {x["line"] for x in merge_lines}]
+        result.extend(new_lines)
+    else:
+        existing_line_numbers: set[int] = {e["line"] for e in merge_lines}
+        result = merge_lines[:]
+        for entry in kw_lines:
+            if entry["line"] not in existing_line_numbers:
+                result.append(entry)
+                existing_line_numbers.add(entry["line"])
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_text(
-        json.dumps(merge_lines, ensure_ascii=False, indent=2),
+        json.dumps(result, ensure_ascii=False, indent=2),
         encoding="utf-8"
     )
-    agent_logger.info(f"[inject_keywords_into_merge] out={output_path}")
+    agent_logger.info(
+        f"[inject_keywords_into_merge] overwrite={overwrite} out={output_path}"
+    )
     return output_path
 
 
