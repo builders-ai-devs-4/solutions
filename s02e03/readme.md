@@ -17,6 +17,7 @@ pip install opencv-python pillow pytesseract
 pip install matplotlib
 pip install scipy
 pip install tiktoken
+pip install -U langchain-openrouter
 ```
 
 or

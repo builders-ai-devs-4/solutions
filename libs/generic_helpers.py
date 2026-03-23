@@ -1,5 +1,6 @@
 
 import csv
+import json
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import urljoin, urlsplit
@@ -56,3 +57,26 @@ def read_csv_rows(file_path: Path) -> list[dict]:
     with open(file_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         return list(reader)
+
+def save_text_file(path: str | Path, content: str, override: bool = True) -> Path:
+    """Zapisuje string do pliku tekstowego. Tworzy foldery jeśli nie istnieją."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.exists() or override:
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(content)
+    return p
+
+
+def read_json_files(folder: str | Path, pattern: str = "*.json") -> list[dict]:
+    """Wczytuje wszystkie pliki .json z folderu pasujące do wzorca.
+    Zwraca listę słowników posortowaną po nazwie pliku."""
+    folder_path = Path(folder)
+    files = sorted(folder_path.glob(pattern))
+    result = []
+    for f in files:
+        with open(f, "r", encoding="utf-8") as fh:
+            result.append({"file": str(f), "data": json.load(fh)})
+    return result
+
+

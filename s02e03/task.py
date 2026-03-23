@@ -12,6 +12,7 @@ import requests
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
 TASK           = os.getenv('TASK')
 SOLUTION_URL   = os.getenv('SOLUTION_URL')

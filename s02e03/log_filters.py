@@ -201,7 +201,7 @@ def chunk_by_time_window(
 
     return {"chunks": chunk_files}
 
-def _validate_compression(original: list[dict], compressed: list[dict]) -> bool:
+def validate_compression(original: list[dict], compressed: list[dict]) -> bool:
     if len(original) != len(compressed):
         return False
     for orig, comp in zip(original, compressed):
