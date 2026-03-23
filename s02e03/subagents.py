@@ -8,10 +8,12 @@ from langchain_openrouter import ChatOpenRouter
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from tools import (
+    chunk_log_by_time,
     count_prompt_tokens,
     inject_keywords_into_merge,
     keyword_log_search,
     read_file,
+    save_recompressed_final,
     severity_log_filter,
     save_compressed_chunk,
     merge_compressed_chunks,
@@ -30,6 +32,13 @@ PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 FAILURE_LOG = os.getenv('SOURCE_URL1')
 
+FAILURE_LOG = os.getenv('SOURCE_URL1')
+WORKSPACE = os.getenv('WORKSPACE')
+KEYWORDS_DIR = os.getenv('KEYWORDS_DIR')
+SEVERITY_DIR = os.getenv('SEVERITY_DIR')
+CHUNKS_DIR = os.getenv('CHUNKS_DIR')
+COMPRESSED_DIR = os.getenv('COMPRESSED_DIR')
+
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
 compressor_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "compressor_system.md").read_text(encoding="utf-8")
 
@@ -44,13 +53,13 @@ SEEKER_CONFIG = {
 }
 
 seeker_model = ChatOpenRouter(
-    model="openai:gpt-5-mini",
+    model="openai/gpt-5-mini",
     temperature=0,
 )
 
 _seeker = create_agent(
     model=seeker_model,
-    tools=[keyword_log_search, severity_log_filter],
+    tools=[keyword_log_search, severity_log_filter, chunk_log_by_time],
     system_prompt=seeker_system,
     name="seeker",
 )
@@ -79,12 +88,12 @@ def call_seeker(task: str) -> str:
     
 COMPRESSOR_CONFIG = {
     "callbacks": [LoggerCallbackHandler(agent_logger)],
-    "recursion_limit": 50, 
+    "recursion_limit": 500, 
 }
 
 
 compressor_model = ChatOpenRouter(
-    model="openai/openai:gpt-5-mini",
+    model="openai/gpt-5-mini",
     temperature=0,
 )
 _compressor = create_agent(
@@ -98,6 +107,7 @@ _compressor = create_agent(
         save_final_report,
         inject_keywords_into_merge,
         sort_merge_by_line_number,
+        save_recompressed_final,
     ],
     system_prompt=compressor_system,
     name="compressor",
@@ -125,8 +135,7 @@ _compressor = create_agent(
     "no re-chunking. "
     "Always pass: 1) chunk path(s) or final_report.log path. "
     "2) Token limit. "
-    "3) COMPRESSED_DIR path. "
-    "4) overwrite flag (feedback loop only). "
+    "3) overwrite flag (feedback loop only). "
     "Returns path to final_report.log — read it and pass content to send_request."
 ))
 def call_compressor(task: str) -> str:

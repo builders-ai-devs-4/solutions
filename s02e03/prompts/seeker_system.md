@@ -34,7 +34,7 @@ Logs follow this format:
    This is significantly faster — scans only pre-filtered lines.
 
 5. **LINE REFERENCES (CRITICAL):** Every `.json` result file contains 
-   `line_number` fields that reference the original `failure.log`.
+   `line` fields that reference the original `failure.log`.
    These references must never be lost. Always pass `.json` files between 
    pipeline stages — never `.log` files.
 

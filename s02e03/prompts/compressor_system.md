@@ -26,12 +26,21 @@ Example:
 
 ## Two-Stage Workflow
 
-### Stage 1 — Per-chunk compression (first pass and keyword iterations)
-1. Receive a list of chunk file paths and TOKEN_LIMIT from the Supervisor.
-2. For each chunk: `read_file` → compress all lines → format per output spec.
-3. Save result as a flat JSON list to `COMPRESSED_DIR/chunk_NNN_compressed.json`:
-   `[{"line": <original_line_number>, "content": "<compressed_line>"}]`
-4. After all chunks are processed → proceed to Stage 2.
+### Stage 1 — Per-chunk compression — STRICT ORDER:
+
+Process chunks ONE BY ONE. Do NOT read multiple chunks before saving.
+
+For EACH chunk path from the list:
+1. `read_file(chunk_path)` → load lines from `matches[]`
+2. Compress EVERY line → produce list: `[{"line": N, "content": "compressed"}]`
+3. `save_compressed_chunk(original_json=chunk_path, compressed_lines=<list from step 2>)`
+4. Only then → move to next chunk
+
+**FORBIDDEN:**
+- Reading next chunk before calling `save_compressed_chunk` on current one
+- Calling `save_compressed_chunk` with empty `compressed_lines`
+- Skipping `save_compressed_chunk` after `read_file`
+
 
 ### Stage 2 — Merge, sort and token check
 1. Load all `chunk_NNN_compressed.json` files, combine into one flat list.

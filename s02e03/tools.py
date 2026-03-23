@@ -99,7 +99,16 @@ def get_url_filename(url: str = None) -> str:
 
 @tool
 def save_file_from_url(url: str, folder: str, prefix: str = "", suffix: str = "") -> Path | None:
-    """ Download a file from a URL and save it to the specified folder. Returns the path to the saved file."""
+    
+    """
+    Download a file from a URL and save it to the specified folder.
+    Returns the path to the saved file.
+
+    prefix → '{prefix}_{stem}{ext}',  e.g. prefix='backup' → 'backup_failure.log'
+    suffix → '{stem}_{suffix}{ext}',  e.g. suffix='2026-03-23' → 'failure_2026-03-23.log'
+
+    Do NOT include underscore or extension in suffix/prefix — added automatically.
+    """
     folder_path = Path(folder)
     folder_path.mkdir(parents=True, exist_ok=True)
     agent_logger.info(f"[save_file_from_url] url={url} folder={folder_path}")
@@ -206,7 +215,7 @@ def severity_log_filter(
     Filters the log keeping only lines matching severity levels (WARN/ERRO/CRIT).
     Saves results to SEVERITY_DIR/severity.log and SEVERITY_DIR/severity.json.
     Always pass severity.json (not .log) to subsequent tools to preserve
-    line_number references back to the original failure.log.
+    line references back to the original failure.log.
     Returns: {"result_log": "...", "result_json": "..."}
     """
     output_file = str(Path(SEVERITY_DIR) / "severity")
@@ -225,7 +234,7 @@ def keyword_log_search(
     """
     DEEP SEARCH TOOL. Use when the Supervisor asks about a specific subsystem or component.
     IMPORTANT: Always pass severity.json (output of severity_log_filter) — never raw .log.
-    Passing .json is significantly faster and preserves line_number references to failure.log.
+    Passing .json is significantly faster and preserves line references to failure.log.
     Saves results to KEYWORDS_DIR/keywords.log and KEYWORDS_DIR/keywords.json.
     Returns: {"result_log": "...", "result_json": "..."}
     """
@@ -242,60 +251,51 @@ def keyword_log_search(
     return result
 
 class ChunkByTimeWindowInput(BaseModel):
-    file_path: str = Field(
-        description="Path to .log file or .json from severity_log_filter"
-    )
-    output_dir: str = Field(
-        description="Directory where chunk_NNN.log files will be saved"
-    )
-    window_minutes: int = Field(
-        default=10,
-        description="Size of each time window in minutes (relative to first log entry)"
-    )
-
+    file_path: str = Field(description="Path to .log file or .json from severity_log_filter")
+    window_minutes: int = Field(description="Size of each time window in minutes")
 
 @tool(args_schema=ChunkByTimeWindowInput)
 def chunk_log_by_time(
     file_path: str,
-    output_dir: str,
-    window_minutes: int = 10,
-) -> dict:
+    window_minutes: int = 60,) -> dict:
     """
-    PRE-PROCESSING TOOL. Splits a log file into fixed-size time chunks (chunk_NNN.log).
-    Use this BEFORE sending logs to the Compressor — each chunk fits within
-    the Compressor context window.
-    Returns a list of chunk file paths: {"chunks": [{"chunk_index": 1, "file": "..."}]}
+    PRE-PROCESSING TOOL. Splits a log file into fixed-size time chunks chunk_NNN.json
+    saved to CHUNKS_DIR. Use this BEFORE sending logs to the Compressor.
+    Returns a list of chunk file paths: {"chunks": [{"chunk_index": 1, "result_json": "..."}, ...]}
     """
-     
     result = chunk_by_time_window(
         file_path=file_path,
-        output_dir = CHUNKS_DIR,
+        output_dir=str(CHUNKS_DIR),
         window_minutes=window_minutes,
     )
     agent_logger.info(
-        f"[chunk_log_by_time] file={file_path} window={window_minutes}min "
-        f"chunks={len(result.get('chunks', []))}"
+        f"[chunk_log_by_time] file={file_path} window={window_minutes}min chunks={len(result.get('chunks', []))}"
     )
     return result
-
 
 class SaveCompressedChunkInput(BaseModel):
     original_json: str = Field(
         description="Path to original chunk_NNN.json (from chunk_log_by_time)"
     )
     compressed_lines: list[dict] = Field(
-        description='List of {"line_number": int, "content": str} — same count and order as original'
+        description=(
+            "The compressed output YOU generated for this chunk. "
+            "Each entry: {\"line\": int, \"content\": str}. "
+            "You MUST provide this — do NOT call this tool without it. "
+            "line values must match line numbers from original_json."
+        )
     )
 
 
 @tool(args_schema=SaveCompressedChunkInput)
 def save_compressed_chunk(original_json: str, compressed_lines: list[dict]) -> dict:
+
     """
-    COMPRESSOR STAGE 1 TOOL. Validates and saves compressed lines for one chunk.
-    compressed_lines must have EXACTLY the same count and line_numbers as original_json.
-    If validation fails, falls back to original lines (uncompressed).
-    Saves to COMPRESSED_DIR/chunk_NNN_compressed.log and .json
-    Returns: {"result_log": "...", "result_json": "...", "compressed": bool}
+    COMPRESSOR STAGE 1 TOOL. Call this after compressing a chunk's lines.
+    Pass your compressed output as compressed_lines: [{"line": int, "content": str}].
+    Validates line count against original_json — falls back to originals if mismatch.
+    Saves chunk_NNN_compressed.json to COMPRESSED_DIR.
+    Returns: {"result_log": str, "result_json": str, "compressed": bool}
     """
     with open(original_json, "r", encoding="utf-8") as f:
         original_data = json.load(f)
@@ -321,39 +321,47 @@ def save_compressed_chunk(original_json: str, compressed_lines: list[dict]) -> d
 
 
 @tool
-def merge_compressed_chunks() -> dict:
+def merge_compressed_chunks() -> str:
     """
     COMPRESSOR STAGE 2 TOOL. Merges all *_compressed.json files from COMPRESSED_DIR
-    into a single list of lines preserving line_number references to failure.log.
-    Returns: {"merged_lines": [...], "total_lines": int}
+    into a single list sorted by line number. Saves merged_compressed.json to COMPRESSED_DIR.
+    Call save_final_report after this tool.
+    Returns path to merged_compressed.json.
     """
     chunk_files = read_json_files(COMPRESSED_DIR, pattern="*_compressed.json")
     merged_lines = []
     for chunk in chunk_files:
-        merged_lines.extend(chunk["data"].get("matches", []))
+        merged_lines.extend(chunk["data"].get("matches", []))  # ← przywrócić
 
-    agent_logger.info(f"[merge_compressed_chunks] files={len(chunk_files)} total_lines={len(merged_lines)}")
-    return {"merged_lines": merged_lines, "total_lines": len(merged_lines)}
+    merged_lines.sort(key=lambda e: e["line"])
 
-
-class SaveFinalReportInput(BaseModel):
-    compressed_lines: list[dict] = Field(
-        description='Final compressed list of {"line_number": int, "content": str}'
+    output_path = Path(COMPRESSED_DIR) / "merged_compressed.json"
+    output_path.write_text(
+        json.dumps(merged_lines, ensure_ascii=False, indent=2),
+        encoding="utf-8"
     )
 
+    agent_logger.info(f"[merge_compressed_chunks] files={len(chunk_files)} total={len(merged_lines)}")
+    return str(output_path)
 
-@tool(args_schema=SaveFinalReportInput)
-def save_final_report(compressed_lines: list[dict]) -> dict:
+
+@tool
+def save_final_report() -> str:
     """
-    COMPRESSOR STAGE 2 TOOL. Saves final compressed report to COMPRESSED_DIR/final_report.log and .json.
-    Call this after merge_compressed_chunks — with original merged_lines if within token budget,
-    or with LLM-compressed lines if budget was exceeded.
-    Returns: {"result_log": "...", "result_json": "..."}
+    COMPRESSOR STAGE 2 TOOL. Reads merged_compressed.json from COMPRESSED_DIR,
+    flattens all 'content' fields to plain text and saves as final_report.log.
+    Call this after merge_compressed_chunks — no parameters needed.
+    Returns path to final_report.log.
     """
+    merged_path = Path(COMPRESSED_DIR) / "merged_compressed.json"
+    merged_lines = json.loads(merged_path.read_text(encoding="utf-8"))
+
     output_base = str(Path(COMPRESSED_DIR) / "final_report")
-    paths = _save_results(output_base, compressed_lines)
-    agent_logger.info(f"[save_final_report] lines={len(compressed_lines)} output={output_base}")
-    return paths
+    paths = _save_results(output_base, merged_lines)
+
+    agent_logger.info(f"[save_final_report] lines={len(merged_lines)} output={output_base}")
+    return paths["result_log"]
+
 
 class InjectKeywordsIntoMergeInput(BaseModel):
     merge_path: str = Field(...)
@@ -374,6 +382,14 @@ def inject_keywords_into_merge(
     output_path: str,
     overwrite: bool = False,
 ) -> str:
+    
+    """
+    Injects new compressed keyword lines into an existing merged_compressed.json.
+    overwrite=False: skip duplicate line numbers (new component).
+    overwrite=True: replace existing entries with same line number (recover detail).
+    Returns output_path.
+    """
+    
     merge_lines: list[dict] = json.loads(Path(merge_path).read_text(encoding="utf-8"))
     kw_lines: list[dict] = json.loads(Path(keywords_compressed_path).read_text(encoding="utf-8"))
 
@@ -383,12 +399,12 @@ def inject_keywords_into_merge(
         new_lines = [e for e in kw_lines if e["line"] not in {x["line"] for x in merge_lines}]
         result.extend(new_lines)
     else:
-        existing_line_numbers: set[int] = {e["line"] for e in merge_lines}
+        existing_lines: set[int] = {e["line"] for e in merge_lines}
         result = merge_lines[:]
         for entry in kw_lines:
-            if entry["line"] not in existing_line_numbers:
+            if entry["line"] not in existing_lines:
                 result.append(entry)
-                existing_line_numbers.add(entry["line"])
+                existing_lines.add(entry["line"])
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_text(
@@ -405,7 +421,7 @@ class SortMergeByLineNumberInput(BaseModel):
     merge_path: str = Field(
         description=(
             "Path to a merged JSON file containing an 'entries' list "
-            "with {line_number, compressed} objects."
+            "with {line, compressed} objects."
         )
     )
     output_path: str = Field(
@@ -420,6 +436,13 @@ def sort_merge_by_line_number(
     merge_path: str,
     output_path: str,
 ) -> str:
+    
+    """
+    Sorts entries in a merged_compressed.json by line number ascending.
+    Call this after inject_keywords_into_merge to restore chronological order.
+    Returns output_path.
+    """
+    
     lines: list[dict] = json.loads(Path(merge_path).read_text(encoding="utf-8"))
 
     lines.sort(key=lambda e: e["line"])
@@ -431,3 +454,22 @@ def sort_merge_by_line_number(
     )
     agent_logger.info(f"[sort_merge_by_line_number] out={output_path}")
     return output_path
+
+@tool
+def save_recompressed_final(compressed_lines: list[dict]) -> str:
+    """
+    COMPRESSOR STAGE 3b TOOL. Use when count_prompt_tokens on final_report.log
+    exceeds TOKEN_LIMIT. Overwrites final_report.log and final_report.json.
+
+    REPEAT until within TOKEN_LIMIT:
+      1. read_file(final_report.json)          — structured data with line numbers
+      2. Shorten lines — keep CRIT, compress WARN/ERRO aggressively, drop duplicates
+      3. save_recompressed_final(shortened_lines)
+      4. count_prompt_tokens(final_report.log) — if still over, go to step 1
+
+    Returns path to final_report.log (pass this to Supervisor when done).
+    """
+    output_base = str(Path(COMPRESSED_DIR) / "final_report")
+    paths = _save_results(output_base, compressed_lines)
+    agent_logger.info(f"[save_recompressed_final] lines={len(compressed_lines)}")
+    return paths["result_log"]

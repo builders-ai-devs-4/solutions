@@ -14,12 +14,12 @@ from math import floor
 def _load_lines(file_path: str, strict_refs: bool = True) -> list[dict]:
     """
     Wczytuje linie z .json lub .log.
-    Zawsze zwraca listę słowników {"line_number": int, "content": str}.
+    Zawsze zwraca listę słowników {"line": int, "content": str}.
 
     Args:
         strict_refs: True (domyślnie) — akceptuje tylko .json, gwarantuje
-                     że line_number odnosi się do failure.log.
-                     False — akceptuje .log, line_number resetuje się do 1,2,3...
+                     że line odnosi się do failure.log.
+                     False — akceptuje .log, line resetuje się do 1,2,3...
                      (używaj tylko gdy referencja do failure.log nie jest potrzebna)
     """
     src = Path(file_path)
@@ -27,7 +27,7 @@ def _load_lines(file_path: str, strict_refs: bool = True) -> list[dict]:
         with open(src, "r", encoding="utf-8") as f:
             data = json.load(f)
         return [
-            {"line_number": m["line_number"], "content": m["content"]}
+            {"line": m["line"], "content": m["content"]}
             for m in data.get("matches", [])
         ]
     else:
@@ -39,7 +39,7 @@ def _load_lines(file_path: str, strict_refs: bool = True) -> list[dict]:
         with open(src, "r", encoding="utf-8", errors="replace") as f:
             raw = f.readlines()
         return [
-            {"line_number": i + 1, "content": line.rstrip()}
+            {"line": i + 1, "content": line.rstrip()}
             for i, line in enumerate(raw)
         ]
 
@@ -47,13 +47,16 @@ def _save_results(output_base: str, matches: list[dict]) -> dict:
     """
     Zapisuje dwa pliki z tego samego zestawu matches:
     - .log  → czyste linie (identyczne ze źródłem) — dla Compressora
-    - .json → metadane (line_number, content, ...) — dla kolejnych filtrów
+    - .json → metadane (line, content, ...) — dla kolejnych filtrów
     Zwraca słownik z obiema ścieżkami.
     """
     base = Path(output_base).with_suffix("")
     log_path = base.with_suffix(".log")
     json_path = base.with_suffix(".json")
 
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    
     with open(log_path, "w", encoding="utf-8") as f:
         f.writelines(m["content"] + "\n" for m in matches)
 
@@ -92,7 +95,7 @@ def severity_filter(
     for i, line in enumerate(all_lines):
         if m := pattern.search(line):
             matches.append({
-                "line_number": i + 1,
+                "line": i + 1,
                 "content": line.rstrip(),
             })
 
@@ -120,11 +123,11 @@ def keyword_search(
         hits = [bool(p.search(content)) for p in compiled]
         return all(hits) if mode == "all" else any(hits)
 
-    candidate_lines = _load_lines(file_path)  # ← dict list {"line_number": int, "content": str}
+    candidate_lines = _load_lines(file_path)  # ← dict list {"line": int, "content": str}
 
     matches = [
         {
-            **line,   # line_number + content bez zmian
+            **line,   # line + content bez zmian
             "matched_keywords": [kw for kw, p in zip(keywords, compiled) if p.search(line["content"])],
         }
         for line in candidate_lines
@@ -141,7 +144,7 @@ def keyword_search(
 def chunk_by_time_window(
     file_path: str,
     output_dir: str,
-    window_minutes: int = 10,
+    window_minutes: int = 60,
     time_pattern: str = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
 ) -> dict:
     """Dzieli plik logów na chunki o stałym oknie czasowym (relatywnym od pierwszego wpisu).
@@ -152,7 +155,7 @@ def chunk_by_time_window(
     Args:
         file_path:       Ścieżka do pliku .log lub .json (wynik severity_filter).
         output_dir:      Katalog docelowy dla plików chunk_NNN.log.
-        window_minutes:  Rozmiar okna w minutach (domyślnie 10).
+        window_minutes:  Rozmiar okna w minutach.
         time_pattern:    Regex do wyciągania znacznika czasu z linii.
 
     Returns:
@@ -205,6 +208,7 @@ def validate_compression(original: list[dict], compressed: list[dict]) -> bool:
     if len(original) != len(compressed):
         return False
     for orig, comp in zip(original, compressed):
-        if orig["line_number"] != comp["line_number"]:
+        if orig["line"] != comp["line"]:
             return False
     return True
+

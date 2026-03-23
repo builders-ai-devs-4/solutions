@@ -70,20 +70,26 @@ Central Command.
 1. `get_current_datetime` → today's date.
 2. `get_url_filename(FAILURE_LOG_URL)` → FILE_STEM.
 3. `get_file_list(TASK_DATA_FOLDER_PATH)` → check if `FILE_STEM_YYYY-MM-DD.log` exists.
-4. If missing → `save_file_from_url` → save with date-formatted name.
-
+4. If missing → `save_file_from_url(url, TASK_DATA_FOLDER_PATH, suffix="_YYYY-MM-DD")`
+   where YYYY-MM-DD is today's date. Do NOT use prefix — only suffix.
+   
 ### Step 2: First Pass
-1. Instruct `seeker`: severity filter (`[WARN]|[ERRO]|[CRIT]`) on
-   `FILE_STEM_YYYY-MM-DD.log` → returns chunk paths.
-2. `compressor(chunk paths + TOKEN_LIMIT + COMPRESSED_DIR)` → `final_report.log`.
-3. `read_file(final_report.log)` → `count_prompt_tokens`.
-4. If over limit → re-send to Compressor for Stage 2 re-compression.
-5. `send_request(content)` → `scan_flag`.
+1. Construct full source path: `{TASK_DATA_FOLDER_PATH}/{FILE_STEM}_{YYYY-MM-DD}.log`
+2. Instruct `seeker` to run severity filter (`[WARN]|[ERRO]|[CRIT]`) on the full path.
+   Seeker returns: `{"chunks": [{"chunk_index": N, "result_json": "...", ...}]}`
+3. Extract ALL `result_json` values from the chunks list.
+   NEVER pass severity.json to Compressor — pass ONLY the chunk result_json paths.
+4. Pass chunk result_json paths + TOKEN_LIMIT to `compressor` → `final_report.log`.
+5. `read_file(final_report.log)` → `count_prompt_tokens`.
+6. If over TOKEN_LIMIT → return `final_report.log` path to Compressor for
+   re-compression (no new Seeker call, no re-chunking).
+7. `send_request(content)` → `scan_flag`.
 
 ### Step 3: Feedback Loop
 1. If flag → **TERMINATE**.
 2. Analyze Central Command feedback.
-3. Instruct `seeker`: keyword search on `FILE_STEM_YYYY-MM-DD.log`
+3. Instruct `seeker`: keyword search on full path
+   `{TASK_DATA_FOLDER_PATH}/{FILE_STEM}_{YYYY-MM-DD}.log`
    with broad synonyms (min 5–6 keywords in one call) → chunk paths.
 4. Determine overwrite flag based on feedback (Rule 6).
 5. `compressor(new chunk paths + merged_compressed.json path + TOKEN_LIMIT
