@@ -1,37 +1,24 @@
 from pathlib import Path
-import re
 import sys
-from typing import Optional, Tuple
 from langchain_core.tools import tool
 import os
-from pydantic import BaseModel, Field
-import requests
-from langchain_core.callbacks import BaseCallbackHandler
-from modules.tiktoken import encode_prompt
-from modules.models import AnswerModel, SolutionUrlRequest
-from datetime import datetime, date
 from langchain.agents import create_agent
-from langgraph.checkpoint.memory import InMemorySaver
-from langchain_openai import ChatOpenAI
+from langchain_openrouter import ChatOpenRouter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from tools import (
     count_prompt_tokens,
-    detect_mimetype,
-    get_current_datetime,
-    get_file_list,
+    inject_keywords_into_merge,
     keyword_log_search,
     read_file,
-    scan_flag,
-    get_url_filename,
-    save_file_from_url,
-    _RECURSION_LIMIT,
     severity_log_filter,
-    time_window_log_search,
+    save_compressed_chunk,
+    merge_compressed_chunks,
+    save_final_report,
+    sort_merge_by_line_number,
 )
 
-import tiktoken
 from loggers import LoggerCallbackHandler, agent_logger
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
@@ -46,26 +33,39 @@ FAILURE_LOG = os.getenv('SOURCE_URL1')
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
 compressor_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "compressor_system.md").read_text(encoding="utf-8")
 
+# | Agent      | Rekomendowany model     | Powód                                      |
+# | ---------- | ----------------------- | ------------------------------------------ |
+# | seeker     | openai/gpt-4.1-mini     | Dobry tool calling, tani, 1M context       |
+# | compressor | google/gemini-2.0-flash | Najtańszy przy dużych kontekstach, $0.10/M |
+
 SEEKER_CONFIG = {
     "callbacks": [LoggerCallbackHandler(agent_logger)],
     "recursion_limit": 50, 
 }
 
-_seeker = create_agent(
+seeker_model = ChatOpenRouter(
     model="openai:gpt-5-mini",
+    temperature=0,
+)
 
-    tools=[keyword_log_search, severity_log_filter, time_window_log_search],
+_seeker = create_agent(
+    model=seeker_model,
+    tools=[keyword_log_search, severity_log_filter],
     system_prompt=seeker_system,
     name="seeker",
 )
 
 @tool("seeker", description=(
     "Use this tool to search a very large system log file on disk. "
-    "IMPORTANT: In a single call, pass ALL related keywords at once "
-    "(e.g. synonyms, module IDs, related subsystems). "
+    "The agent saves results to disk and returns a result_json path — "
+    "pass this path to subsequent tools, never request raw content. "
+    "In a single call, pass ALL related keywords at once "
+    "(e.g. synonyms, component IDs, related subsystems). "
     "Do NOT make separate calls for 'leak', then 'water', then 'WTANK' — "
     "pass them all in one task. "
-    "If you know the approximate time of the event, use time_window instead of keywords. "
+    "Always specify which file to search: "
+    "- First pass: use FAILURE_LOG path (produces severity.json) "
+    "- Deep search: use severity.json from first pass (faster, preserves line references) "
     "Provide precise instruction in the 'task' parameter."
 ))
 def call_seeker(task: str) -> str:
@@ -82,25 +82,47 @@ COMPRESSOR_CONFIG = {
     "recursion_limit": 50, 
 }
 
-_compressor = create_agent(
-    model="openai:gpt-5-mini",
 
-tools=[count_prompt_tokens, scan_flag, read_file],
+compressor_model = ChatOpenRouter(
+    model="openai/openai:gpt-5-mini",
+    temperature=0,
+)
+_compressor = create_agent(
+    model=compressor_model,
+
+    tools=[
+        read_file,                 
+        save_compressed_chunk,
+        merge_compressed_chunks,
+        count_prompt_tokens,
+        save_final_report,
+        inject_keywords_into_merge,
+        sort_merge_by_line_number,
+    ],
     system_prompt=compressor_system,
     name="compressor",
 )
 
 
 @tool("compressor", description=(
-    "Use this tool to format and compress logs. "
-    "In the 'task' parameter provide THREE items: "
-    "1) FILE PATH(S) to read — e.g. '/data/severity_2026-03-21.json' and '/data/keywords_result.json'. "
-    "   Do NOT paste raw log lines — pass file paths only. "
-    "2) The TOKEN LIMIT from your instructions. "
-    "3) Compression guidelines (what to preserve based on Central feedback). "
-    "Example: 'Read file at /data/severity.json and /data/keyword_result.json. "
-    "Preserve info about WSTPOOL2. Token limit is 500.' "
-    "The agent will read the files itself, compress and return formatted text."
+    "Use this tool to compress log chunks in two stages. "
+    "STAGE 1: Pass a list of chunk_NNN.json file paths (from chunk_log_by_time). "
+    "The agent reads each chunk, compresses every line individually, "
+    "and saves chunk_NNN_compressed.json to COMPRESSED_DIR. "
+    "Line numbers are preserved — they reference the original source log file. "
+    "STAGE 2: The agent merges all compressed chunks, sorts by line number, "
+    "counts tokens, and if over budget — compresses the merged content once more. "
+    "Saves merged_compressed.json and final_report.log to COMPRESSED_DIR. "
+    "FEEDBACK LOOP ITERATION: If Central Command requests more detail, "
+    "pass new keyword chunk paths AND the existing merged_compressed.json path. "
+    "The agent injects new lines into the merge, sorts chronologically, "
+    "then re-runs Stage 2. "
+    "RE-COMPRESSION: If token count is still over limit after Stage 2, "
+    "pass the final_report.log path back — agent re-compresses from that file only, "
+    "no re-chunking. "
+    "Always pass: 1) chunk path(s) or final_report.log path. "
+    "2) Token limit. "
+    "Returns path to final_report.log — pass its content to send_request."
 ))
 def call_compressor(task: str) -> str:
     result = _compressor.invoke(

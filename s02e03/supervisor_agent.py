@@ -21,6 +21,7 @@ from tools import count_prompt_tokens, detect_mimetype, get_current_datetime, ge
 
 import tiktoken
 from loggers import LoggerCallbackHandler, agent_logger
+from langchain_openrouter import ChatOpenRouter
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
 TASK_NAME          = os.environ["TASK_NAME"]
@@ -40,8 +41,15 @@ SUPERVISOR_CONFIG = {
     "recursion_limit": _RECURSION_LIMIT,
 }
 
-supervisor = create_agent(
+
+
+supervisor_model = ChatOpenRouter(
     model="openai:gpt-5-mini",
+    temperature=0,
+)
+
+supervisor = create_agent(
+    model=supervisor_model,
     tools=[
         save_file_from_url,
         get_url_filename,
@@ -49,10 +57,10 @@ supervisor = create_agent(
         count_prompt_tokens,
         scan_flag,
         get_current_datetime,
+        read_file,
         call_compressor,
         call_seeker,
-        send_request
-
+        send_request,
     ],
     system_prompt=supervisor_sys_prompt,
     name="supervisor",
