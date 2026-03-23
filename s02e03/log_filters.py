@@ -144,7 +144,7 @@ def keyword_search(
 def chunk_by_time_window(
     file_path: str,
     output_dir: str,
-    window_minutes: int = 60,
+    window_minutes: int,
     time_pattern: str = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
 ) -> dict:
     """Dzieli plik logów na chunki o stałym oknie czasowym (relatywnym od pierwszego wpisu).

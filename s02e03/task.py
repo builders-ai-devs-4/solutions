@@ -56,8 +56,6 @@ supervisor_user = Template(supervisor_user_template).substitute(
     FAILURE_LOG_URL=failure_log_url,
     SOLUTION_URL=SOLUTION_URL,
     TASK_DATA_FOLDER_PATH=task_data_folder,
-    COMPRESSED_DIR=COMPRESSED_DIR,
-    CHUNKS_DIR=CHUNKS_DIR,
     SEVERITY_DIR=SEVERITY_DIR,
     KEYWORDS_DIR=KEYWORDS_DIR,
     )

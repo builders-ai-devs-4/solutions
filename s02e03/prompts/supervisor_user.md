@@ -9,7 +9,6 @@ power plant failure.
 * **FAILURE_LOG_URL:** $FAILURE_LOG_URL
 * **SOLUTION_URL:** $SOLUTION_URL
 * **TASK_DATA_FOLDER_PATH:** $TASK_DATA_FOLDER_PATH
-* **COMPRESSED_DIR:** $COMPRESSED_DIR
 
 ## Required Operational Steps:
 
@@ -25,7 +24,7 @@ power plant failure.
 2. **First Pass (General Phase):**
    * Delegate to Seeker: filter `FILE_STEM_YYYY-MM-DD.log` for severity levels
      `[WARN]`, `[ERRO]`, `[CRIT]`. Seeker returns chunk paths.
-   * Pass chunk paths + TOKEN_LIMIT + COMPRESSED_DIR to Compressor.
+   * Pass chunk paths + TOKEN_LIMIT to Compressor.
    * Compressor returns path to `final_report.log`.
    * Use `read_file` to load `final_report.log`, then `count_prompt_tokens`.
    * If over TOKEN_LIMIT → return `final_report.log` path to Compressor for
@@ -41,9 +40,10 @@ power plant failure.
      paths to Compressor with overwrite=False.
    * If Central asks about a component already in the report but needing more
      detail → pass new chunk paths to Compressor with overwrite=True.
-   * Always pass TOKEN_LIMIT + COMPRESSED_DIR to Compressor.
-   * `read_file` → `count_prompt_tokens` → re-compress if needed → `send_request`
-     → `scan_flag`.
+   * Always pass TOKEN_LIMIT to Compressor.
+   * `read_file(final_report.log)` → `count_prompt_tokens(content)`.
+     If over TOKEN_LIMIT → call Compressor with TOKEN_LIMIT only (no chunk paths).
+     Repeat until within limit. Then `send_request(content)` → `scan_flag`.
    * Repeat until `{FLG:...}` received.
 
 ## Critical Constraints:

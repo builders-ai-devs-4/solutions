@@ -72,7 +72,7 @@ Central Command.
 3. `get_file_list(TASK_DATA_FOLDER_PATH)` → check if `FILE_STEM_YYYY-MM-DD.log` exists.
 4. If missing → `save_file_from_url(url, TASK_DATA_FOLDER_PATH, suffix="_YYYY-MM-DD")`
    where YYYY-MM-DD is today's date. Do NOT use prefix — only suffix.
-   
+
 ### Step 2: First Pass
 1. Construct full source path: `{TASK_DATA_FOLDER_PATH}/{FILE_STEM}_{YYYY-MM-DD}.log`
 2. Instruct `seeker` to run severity filter (`[WARN]|[ERRO]|[CRIT]`) on the full path.
@@ -81,8 +81,8 @@ Central Command.
    NEVER pass severity.json to Compressor — pass ONLY the chunk result_json paths.
 4. Pass chunk result_json paths + TOKEN_LIMIT to `compressor` → `final_report.log`.
 5. `read_file(final_report.log)` → `count_prompt_tokens`.
-6. If over TOKEN_LIMIT → return `final_report.log` path to Compressor for
-   re-compression (no new Seeker call, no re-chunking).
+6. If over TOKEN_LIMIT → call compressor with instruction to re-compress,
+   TOKEN_LIMIT only. No chunk paths, no Seeker call.
 7. `send_request(content)` → `scan_flag`.
 
 ### Step 3: Feedback Loop
@@ -92,7 +92,9 @@ Central Command.
    `{TASK_DATA_FOLDER_PATH}/{FILE_STEM}_{YYYY-MM-DD}.log`
    with broad synonyms (min 5–6 keywords in one call) → chunk paths.
 4. Determine overwrite flag based on feedback (Rule 6).
-5. `compressor(new chunk paths + merged_compressed.json path + TOKEN_LIMIT
-   + COMPRESSED_DIR + overwrite)` → `final_report.log`.
-6. `read_file` → `count_prompt_tokens` → re-compress if needed.
+5. `compressor(new chunk paths + merged_compressed.json path + TOKEN_LIMIT + overwrite)`
+   → `final_report.log`.
+6. `read_file(final_report.log)` → `count_prompt_tokens(content)`.
+   If over TOKEN_LIMIT → call compressor with TOKEN_LIMIT only (re-compression,
+   no chunk paths). Repeat until within limit.
 7. `send_request(content)` → `scan_flag` → repeat.

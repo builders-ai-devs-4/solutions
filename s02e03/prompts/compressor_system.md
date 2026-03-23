@@ -15,7 +15,7 @@ Input file formats you will encounter:
 - `.json` from `severity_log_filter` or `keyword_log_search` — read the
   `matches[].content` fields
 - `.log` plain text — read lines directly
-- `merged_compressed.json` — flat JSON list: `[{"line": N, "content": "..."}]`
+- `final_report.json` — flat JSON list: `[{"line": N, "content": "..."}]`
   — read the `content` fields, `line` is a reference only
 
 Required output format (one event = one line):
@@ -28,46 +28,49 @@ Example:
 
 ### Stage 1 — Per-chunk compression — STRICT ORDER:
 
-Process chunks ONE BY ONE. Do NOT read multiple chunks before saving.
-
 For EACH chunk path from the list:
 1. `read_file(chunk_path)` → load lines from `matches[]`
-2. Compress EVERY line → produce list: `[{"line": N, "content": "compressed"}]`
+2. **IN YOUR HEAD** — produce compressed list before calling any tool:
+   For EVERY line create: `{"line": <original line number>, "content": "<compressed text>"}`
+   Example input:  `"[2026-03-22 06:04:13] [CRIT] ECCS8 reported runaway outlet temperature..."`
+   Example output: `{"line": 10, "content": "2026-03-22 06:04 [CRIT] [ECCS8] Runaway outlet temp; reactor trip."}`
 3. `save_compressed_chunk(original_json=chunk_path, compressed_lines=<list from step 2>)`
-4. Only then → move to next chunk
+   compressed_lines MUST contain one dict per original line — never [{}] or []
+
+### Stage 2 — Merge and finalize — USE TOOLS, do NOT merge manually:
+
+1. `merge_compressed_chunks()` — merges all *_compressed.json, sorts by line,
+   saves merged_compressed.json. Returns path to merged_compressed.json.
+2. `save_final_report()` — flattens to plain text, saves final_report.log
+   and final_report.json. Returns path to final_report.log.
+3. `read_file(final_report.log)` → `count_prompt_tokens(content)` — verify.
+4. If within TOKEN_LIMIT → return path to final_report.log to Supervisor.
+5. If over TOKEN_LIMIT → enter Re-compression loop (see below).
 
 **FORBIDDEN:**
-- Reading next chunk before calling `save_compressed_chunk` on current one
-- Calling `save_compressed_chunk` with empty `compressed_lines`
-- Skipping `save_compressed_chunk` after `read_file`
+- Merging or sorting chunks manually in memory
+- Calling `save_compressed_chunk` with final_report.log as input
+- Returning result before verifying token count
 
+### Re-compression loop — when tokens > TOKEN_LIMIT:
+Triggered after Stage 2 step 5, OR when Supervisor rejects final_report.log.
 
-### Stage 2 — Merge, sort and token check
-1. Load all `chunk_NNN_compressed.json` files, combine into one flat list.
-2. Sort by `line` ascending (chronological order).
-3. Save as `COMPRESSED_DIR/merged_compressed.json`.
-4. Flatten to plain text (one `content` per line) → `count_prompt_tokens`.
-5. If within TOKEN_LIMIT → save as `final_report.log` → return its path.
-6. If over TOKEN_LIMIT → re-compress the merged text more aggressively
-   (shorten descriptions, remove least important lines) → re-count → repeat
-   until within limit → save `final_report.log` → return its path.
+while tokens > TOKEN_LIMIT:
+  1. `read_file(final_report.json)` — ALWAYS use .json, NOT .log (preserves line refs)
+  2. Shorten: keep ALL CRIT intact, aggressively compress WARN/ERRO, drop duplicates
+  3. `save_recompressed_final(shortened_lines)` — overwrites both final_report.log and .json
+  4. `read_file(final_report.log)` → `count_prompt_tokens(content)` — verify
 
-### Stage 2 (re-compression only) — when Supervisor rejects final_report.log
-Supervisor will send back the `final_report.log` path with a reprimand.
-1. `read_file(final_report.log)` → compress more aggressively.
-2. `count_prompt_tokens` → verify.
-3. Overwrite `final_report.log` → return its path.
-Do NOT re-read original chunks. Work only from `final_report.log`.
+Return path to final_report.log only when within TOKEN_LIMIT.
+Do NOT re-read original chunks. Work only from final_report.json.
 
 ### Feedback loop — keyword injection iteration
 When Supervisor provides new keyword chunk paths:
 1. Stage 1: compress the new keyword chunks → chunk_keyword_NNN_compressed.json
 2. Call inject_keywords_into_merge with:
    - overwrite=False → when Central asks about a NEW component not yet in merge
-     (inject new lines, preserve existing)
    - overwrite=True  → when Central asks about a component ALREADY in merge
-     but Supervisor indicates the existing lines are over-compressed and need
-     replacement with richer detail from source file
+     but needs replacement with richer detail
 3. sort_merge_by_line_number → restores chronological order
 4. Proceed to Stage 2
 
