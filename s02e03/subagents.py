@@ -9,11 +9,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from tools import (
     chunk_log_by_time,
+    compress_chunk,
     count_prompt_tokens,
     inject_keywords_into_merge,
     keyword_log_search,
     read_file,
-    save_recompressed_final,
+    recompress_final,
     severity_log_filter,
     save_compressed_chunk,
     merge_compressed_chunks,
@@ -107,7 +108,8 @@ _compressor = create_agent(
         save_final_report,
         inject_keywords_into_merge,
         sort_merge_by_line_number,
-        save_recompressed_final,
+        compress_chunk,
+        recompress_final,
     ],
     system_prompt=compressor_system,
     name="compressor",
@@ -115,24 +117,22 @@ _compressor = create_agent(
 
 
 @tool("compressor", description=(
-    "Use this tool to compress log chunks in two stages. "
+    "Use this tool to compress log chunks into a token-efficient final_report.log. "
     "STAGE 1: Pass a list of chunk_NNN.json file paths (from chunk_log_by_time). "
-    "The agent reads each chunk, compresses every line individually, "
-    "and saves chunk_NNN_compressed.json to COMPRESSED_DIR. "
+    "The agent compresses ALL chunks, then AUTOMATICALLY proceeds to Stage 2. "
+    "Returns path to final_report.log only after Stage 2 is complete. "
+    "Do NOT expect intermediate results — Compressor runs Stage 1 and Stage 2 in sequence. "
     "Line numbers are preserved — they reference the original source log file. "
     "STAGE 2: The agent merges all compressed chunks, sorts by line number, "
-    "counts tokens, and if over budget — re-compresses from final_report.json. "
+    "verifies token count, and re-compresses if over TOKEN_LIMIT. "
     "Saves merged_compressed.json and final_report.log to COMPRESSED_DIR. "
     "FEEDBACK LOOP ITERATION: If Central Command requests more detail, "
-    "pass new keyword chunk paths AND the existing merged_compressed.json path. "
-    "Specify overwrite=False when Central asks about a NEW component not yet in merge. "
-    "Specify overwrite=True when Central asks about a component ALREADY in merge "
-    "that needs richer detail recovered from the source file. "
-    "The agent injects new lines into the merge, sorts chronologically, "
-    "then re-runs Stage 2. "
+    "pass new keyword chunk paths AND overwrite flag to Compressor. "
+    "Specify overwrite=False when Central asks about a NEW component not yet in report. "
+    "Specify overwrite=True when Central asks about a component ALREADY in report "
+    "that needs richer detail. "
     "RE-COMPRESSION: If Supervisor rejects the result as too long, "
-    "call compressor again — it re-compresses from final_report.json internally. "
-    "No need to pass file paths for re-compression, just pass TOKEN_LIMIT again. "
+    "call compressor again with TOKEN_LIMIT only — no chunk paths needed. "
     "Always include TOKEN_LIMIT in every call. "
     "Returns path to final_report.log. "
     "BEFORE calling send_request: read the file and verify token count "
