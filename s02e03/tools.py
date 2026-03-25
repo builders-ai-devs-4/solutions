@@ -674,11 +674,58 @@ def compress_logs(input_json_path: str, instructions: str = "") -> str:
         agent_logger.error(f"[compress_logs] Błąd: {e}")
         raise RuntimeError(f"Błąd podczas kompresji: {e}") from e
 
+@tool
+def compress_logs(input_json_path: str, instructions: str = "") -> str:
+    """
+    Kompresuje logi z pliku wejściowego.
+    Zapisuje wynik jako 'final_report.log' i zwraca ścieżkę do niego.
+    """
+    # 1. SMART PATHING: Brutalne nadpisanie ścieżki
+    filename = Path(input_json_path).name
+    
+    if "final_report" in filename:
+        # Re-kompresja! Agent podał final_report.json, wiemy gdzie on leży
+        real_input_path = str(Path(COMPRESSED_DIR) / filename)
+    elif "severity" in filename:
+        # Pierwsze przejście po błędach
+        real_input_path = str(Path(SEVERITY_DIR) / filename)
+    elif "keywords" in filename:
+        # Kompresja wyników szukania
+        real_input_path = str(Path(KEYWORDS_DIR) / filename)
+    else:
+        # Fallback
+        real_input_path = input_json_path
+
+    # Zabezpieczenie przed brakiem pliku
+    if not Path(real_input_path).exists():
+        raise FileNotFoundError(f"Nie znaleziono pliku do kompresji: {real_input_path}")
+
+    # 2. Właściwa kompresja i zapis
+    out_base = str(Path(COMPRESSED_DIR) / "final_report")
+    
+    try:
+        agent_logger.info(f"[compress_logs] Kompresuję plik: {real_input_path}")
+        
+        # TUTAJ BYŁ BŁĄD! Teraz przekazujemy real_input_path!
+        lines = _load_lines(real_input_path, strict_refs=False)
+        
+        compressed_lines = _compress_lines(lines, limit=TOKEN_LIMIT, instructions=instructions)
+        
+        # Zapis - nadpisze lub stworzy nowy final_report w COMPRESSED_DIR
+        _save_results(out_base, compressed_lines)
+        
+        return f"{out_base}.log"
+        
+    except Exception as e:
+        agent_logger.error(f"[compress_logs] Błąd: {e}")
+        raise RuntimeError(f"Błąd podczas kompresji: {e}") from e
+    
 compression_model = ChatOpenRouter(
     # model="google/gemini-3-flash-preview",
     model="openai/gpt-5-mini",
     temperature=0,
 )
+
 def _compress_lines(lines: list[dict], limit: int, instructions: str = "") -> list[dict]:
     # Twój dotychczasowy prompt rozbudowany o nowe zmienne
     prompt = f"""Skróć poniższe logi, zmieść się w limicie {limit} tokenów.
@@ -708,6 +755,7 @@ Input:
         return lines
 
     return compressed
+
 
 def _compress_lines_previos(lines: list[dict]) -> list[dict]:
     """
