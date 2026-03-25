@@ -263,7 +263,7 @@ def severity_log_filter(
             output_file=output_base, # Przekazujemy ścieżkę bazową
             levels=levels,
             # max_lines=50,  
-            max_lines=4,  
+            max_lines=10,  
         )
         
         agent_logger.info(f"[severity_log_filter] file={file_path} output={output_base}")
@@ -610,7 +610,8 @@ def compress_chunk(chunk_path: str) -> str:
 
 
 @tool
-def merge_new_logs(base_json_path: str, new_logs_json_path: str, output_base_path: str) -> str:
+def merge_new_logs(base_json_path: str, new_logs_json_path: str, output_base_path: str, skip_base_path: bool = True) -> str:
+# def merge_new_logs(base_json_path: str, new_logs_json_path: str, output_base_path: str) -> str:
     """
     Łączy stary raport z nowymi logami od Seekera, sortuje je chronologicznie
     po numerach linii i usuwa duplikaty.
@@ -633,7 +634,7 @@ def merge_new_logs(base_json_path: str, new_logs_json_path: str, output_base_pat
     try:
         base_logs = _load_lines(base_json_path)
         new_logs = _load_lines(new_logs_json_path)
-        
+        # tu olac merge
         merged_dict = {item['line']: item for item in base_logs + new_logs}
         sorted_logs = [merged_dict[line] for line in sorted(merged_dict.keys())]
         

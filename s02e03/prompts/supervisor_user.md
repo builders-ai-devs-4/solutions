@@ -44,3 +44,4 @@ power plant failure.
 * Never paste log content inline — always pass file paths between tools and sub-agents.
 * Always use `count_tokens_in_file` before calling `send_request`.
 * The `send_request` tool takes the FILE PATH (e.g. `final_report.log`), NEVER the raw text content.
+* A "REJECTED" response from Central Command is NORMAL. It contains crucial hints. Treat it as the next step of the puzzle, not a tool failure.

@@ -15,9 +15,8 @@ Logs follow this format:
 2. **FIRST PASS STRATEGY:** If the Supervisor asks for a "first pass", "general errors", or to start the investigation, call `severity_log_filter` on the full source `failure_YYYY-MM-DD.log`. 
    This tool automatically extracts the beginning of the failure cascade (first ~50 errors) and returns a path to a `.json` file. Return this path directly to the Supervisor.
 
-3. **DEEP SEARCH / KEYWORD SEARCH (FILE SELECTION IS CRITICAL):** When the Supervisor asks you to search for specific components or context using `keyword_log_search`, you MUST choose the input file correctly:
-   * **Rule A:** If looking for specific sub-system *errors* or *failures*, pass the `severity.json` file.
-   * **Rule B:** If the Supervisor asks for "context", "environment", "what happened before the crash", or mentions `[INFO]` logs, you MUST pass the original `failure_YYYY-MM-DD.log`. `severity.json` does not contain INFO logs!
+3. **DEEP SEARCH / KEYWORD SEARCH (FILE SELECTION IS CRITICAL):** When the Supervisor asks you to search for specific components or missing context using `keyword_log_search`, you MUST ALWAYS run the search on the original, full source log file (e.g., `failure_YYYY-MM-DD.log`). 
+   NEVER run keyword searches on `severity.json`! The severity file lacks the `[INFO]` level logs which are absolutely crucial for establishing the timeline and context requested by Central Command.
 
 4. **RICH VOCABULARY GENERATION (CRITICAL):** When using `keyword_log_search`, you must translate the Supervisor's natural language request into a broad net of English keywords. 
    * Provide 5 to 10 synonyms or related physical phenomena per concept.
