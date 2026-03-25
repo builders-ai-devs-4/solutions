@@ -69,7 +69,7 @@ def save_text_file(path: str | Path, content: str, override: bool = True) -> Pat
     return p
 
 
-def read_json_files(folder: str | Path, pattern: str = "*.json") -> list[dict]:
+def read_json_files(folder: str, pattern: str = "*.json") -> list[dict]:
     """Wczytuje wszystkie pliki .json z folderu pasujące do wzorca.
     Zwraca listę słowników posortowaną po nazwie pliku."""
     folder_path = Path(folder)
@@ -80,4 +80,16 @@ def read_json_files(folder: str | Path, pattern: str = "*.json") -> list[dict]:
             result.append({"file": str(f), "data": json.load(fh)})
     return result
 
+def read_json_file(file_path: str | Path) -> dict:
+    """Wczytuje pojedynczy plik .json i zwraca jego zawartość jako słownik."""
+    with open(file_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
+def save_json_file(file_path: str | Path, data: dict, override: bool = True) -> Path:
+    """Zapisuje słownik do pliku .json. Tworzy foldery jeśli nie istnieją."""
+    path = Path(file_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists() or override:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    return path
