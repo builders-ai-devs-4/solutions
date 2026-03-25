@@ -263,7 +263,7 @@ def severity_log_filter(
             output_file=output_base, # Przekazujemy ścieżkę bazową
             levels=levels,
             # max_lines=50,  
-            max_lines=10,  
+            max_lines=4,  
         )
         
         agent_logger.info(f"[severity_log_filter] file={file_path} output={output_base}")
@@ -334,6 +334,7 @@ def keyword_log_search(
     
     agent_logger.info(f"[keyword_log_search] file={file_path} keywords={keywords}")
     return result
+
 
 class ChunkByTimeWindowInput(BaseModel):
     file_path: str = Field(description="Path to .log file or .json from severity_log_filter")
@@ -645,34 +646,6 @@ def merge_new_logs(base_json_path: str, new_logs_json_path: str, output_base_pat
         agent_logger.error(f"[merge_new_logs] Błąd: {e}")
         # Twarde rzucenie wyjątku, by LangChain to wyłapał jako Tool Error
         raise RuntimeError(f"Błąd podczas łączenia plików: {e}") from e
-
-@tool
-def compress_logs(input_json_path: str, instructions: str = "") -> str:
-    """
-    Kompresuje surowe logi z pliku wejściowego.
-    Zapisuje wynik jako 'final_report.log' oraz 'final_report.json'.
-    Zwraca WYŁĄCZNIE ścieżkę do wygenerowanego pliku 'final_report.log'.
-    """
-    # Ustalamy bazę zapisu (np. workspace/04_compressed/final_report)
-    # ---------------- do poprawyy jest ta sciezka bo chyba nie dostajemy final report
-    out_base = str(Path(COMPRESSED_DIR) / "final_report")
-    
-    try:
-        # 1. Wczytanie (Twoja funkcja)
-        lines = _load_lines(input_json_path)
-        
-        # 2. Kompresja z walidacją (Twoja zaktualizowana funkcja)
-        compressed_lines = _compress_lines(lines, limit=TOKEN_LIMIT, instructions=instructions)
-        
-        # 3. Zapis wyników do final_report.json oraz final_report.log (Twoja funkcja)
-        _save_results(out_base, compressed_lines)
-        
-        # 4. Zwracamy czystą ścieżkę .log do policzenia tokenów i wysyłki
-        return f"{out_base}.log"
-        
-    except Exception as e:
-        agent_logger.error(f"[compress_logs] Błąd: {e}")
-        raise RuntimeError(f"Błąd podczas kompresji: {e}") from e
 
 @tool
 def compress_logs(input_json_path: str, instructions: str = "") -> str:

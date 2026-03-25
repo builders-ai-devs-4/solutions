@@ -137,13 +137,51 @@ def keyword_search(
         if line_matches(line["content"])
     ]
     
+    # Krok 2: OTO MAGIA - Filtrujemy i usuwamy spam od razu!
+    clean_matches = smart_log_filter(matches)
 
-    paths = _save_results(output_base, matches)  # ← wywołujący decyduje gdzie
+    # Krok 3: Zapisujemy tylko to, co jest czyste i potrzebne
+    paths = _save_results(output_base, clean_matches)
+
 
     return {
         **paths,
     }
     
+
+def smart_log_filter(
+    lines: list[dict], 
+    critical_lvl: tuple[str, ...] = (), 
+    optional_lvl: tuple[str, ...] = ('[ERRO]', '[CRIT]', '[INFO]', '[WARN]')
+) -> list[dict]:
+    """
+    Filtruje listę logów:
+    - critical_lvl: (puste) - brak wyjątków dla deduplikacji
+    - optional_lvl: deduplikuje błędy, ostrzeżenia i info
+    """
+    seen_messages = set()
+    filtered_lines = []
+    
+    for item in lines:
+        content = item.get("content", "")
+        
+        # 1. Sprawdzamy, czy to poziom wymagający deduplikacji
+        if any(lvl in content for lvl in optional_lvl):
+            # Wycinamy timestamp do porównania (format [YYYY-MM-DD HH:MM:SS])
+            core_message = re.sub(r'\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]\s*', '', content).strip()
+            
+            if core_message not in seen_messages:
+                seen_messages.add(core_message)
+                filtered_lines.append(item)
+            continue
+            
+        # 2. Jeśli coś wpadnie do critical_lvl (aktualnie puste), przepuszczamy wszystko
+        if any(lvl in content for lvl in critical_lvl):
+            filtered_lines.append(item)
+            continue
+            
+    return filtered_lines
+
 def chunk_by_time_window(
     file_path: str,
     output_dir: str,
