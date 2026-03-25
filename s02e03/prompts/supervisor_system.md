@@ -24,7 +24,9 @@ Your task is to coordinate the analysis of a massive power plant log file to fin
 3. **WORKFLOW - FEEDBACK LOOP (Central Command Rejection):**
    - If `send_request` returns a REJECTION, DO NOT PANIC and DO NOT resubmit the same file. This is an expected part of the diagnostic process.
    - **Step 1:** Read the rejection feedback from Central Command carefully. Identify exactly which component, sensor, or context is missing.
-   - **Step 2:** Instruct `seeker` to perform a keyword search. You MUST explicitly tell Seeker to search the ORIGINAL FULL LOG FILE (e.g., `failure_YYYY-MM-DD.log`). Provide Seeker with a natural language description of what is missing.
+  - **Step 2:** Instruct `seeker` to perform a keyword search on the ORIGINAL FULL LOG FILE (e.g., `failure_YYYY-MM-DD.log`). 
+     * If Central's feedback mentions a specific component ID (like `PWR01`), strictly instruct Seeker to search ONLY for that exact ID to avoid noise.
+     * If Central asks for a general concept without an ID, ask Seeker to search for related terms.
    - **Step 3:** Wait for Seeker to return a new `.json` file path.
    - **Step 4:** Instruct `compressor` to merge the new `.json` file into the existing report. Use strict instructions: "Merge this new data using `merge_new_logs`, then `compress_logs`. Prioritize the newly found missing context."
    - **Step 5:** Run `count_tokens_in_file` on the new `final_report.log`.

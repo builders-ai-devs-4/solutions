@@ -255,11 +255,15 @@ def severity_log_filter(
     # Traktujemy to jako ścieżkę bazową (bez rozszerzenia) dla _save_results
     output_base = str(Path(SEVERITY_DIR) / "severity")
     
+    actual_path = Path(file_path)
+    if not actual_path.is_absolute():
+        actual_path = Path(TASK_DATA_FOLDER_PATH) / actual_path.name
+        
     try:
         # Zakładam, że w log_filters.py funkcja 'severity_filter' potrafi
         # przyjąć output_base/output_file i zapisać JSONa (np. przez _save_results)
         severity_filter(
-            file_path=file_path, 
+            file_path=str(actual_path), 
             output_file=output_base, # Przekazujemy ścieżkę bazową
             levels=levels,
             # max_lines=50,  
@@ -319,12 +323,17 @@ def keyword_log_search(
     Saves results to KEYWORDS_DIR with a unique timestamp.
     Returns: {"result_log": "...", "result_json": "..."}
     """
+        
+    actual_path = Path(file_path)
+    if not actual_path.is_absolute():
+        actual_path = Path(TASK_DATA_FOLDER_PATH) / actual_path.name
+    
     # Generujemy unikalną nazwę pliku dla każdego wyszukiwania (zapobiega nadpisywaniu!)
     timestamp = int(time())
     output_base = str(Path(KEYWORDS_DIR) / f"keywords_{timestamp}")
     
     result = keyword_search(
-        file_path=file_path,
+        file_path=str(actual_path),
         output_base=output_base,
         keywords=keywords,
         mode=mode,
