@@ -73,6 +73,7 @@ def severity_filter(
     file_path: str,
     output_file: str,
     levels: list[str] = ["WARN", "ERRO", "CRIT"],
+    max_lines: int = -1
 ) -> dict:
     output_path = Path(output_file)
     if output_path.exists():
@@ -98,6 +99,8 @@ def severity_filter(
                 "line": i + 1,
                 "content": line.rstrip(),
             })
+        if max_lines > 0 and len(matches) >= max_lines:
+            break
 
     paths = _save_results(output_file, matches)   # Compressor needs .log  and .json for next filters
 
@@ -123,8 +126,8 @@ def keyword_search(
         hits = [bool(p.search(content)) for p in compiled]
         return all(hits) if mode == "all" else any(hits)
 
-    candidate_lines = _load_lines(file_path)  # ← dict list {"line": int, "content": str}
-
+    candidate_lines = _load_lines(file_path, strict_refs=False)  # ← ZMIANA: Wyłączamy restrykcję
+    
     matches = [
         {
             **line,   # line + content bez zmian
@@ -211,4 +214,32 @@ def validate_compression(original: list[dict], compressed: list[dict]) -> bool:
         if orig["line"] != comp["line"]:
             return False
     return True
+
+
+def deduplicate_log_lines(lines: list[str]) -> list[str]:
+    """
+    Usuwa powtarzające się komunikaty błędów, zachowując tylko pierwsze wystąpienie.
+    Ignoruje znacznik czasu przy porównywaniu linii.
+    """
+    seen_signatures = set()
+    unique_lines = []
+    
+    # Zakładamy format: [YYYY-MM-DD HH:MM:SS] [LEVEL] Treść wiadomości...
+    # Ten regex łapie wszystko po znaczniku poziomu, czyli samą treść
+    pattern = re.compile(r"\[.*?\] \[[A-Z]+\] (.*)")
+    
+    for line in lines:
+        match = pattern.search(line)
+        if match:
+            # Sygnaturą jest sama treść loga (bez daty i czasu)
+            message_signature = match.group(1).strip()
+            
+            if message_signature not in seen_signatures:
+                seen_signatures.add(message_signature)
+                unique_lines.append(line.strip())
+        else:
+            # Jeśli linia nie pasuje do formatu, zostawiamy ją dla bezpieczeństwa
+            unique_lines.append(line.strip())
+            
+    return unique_lines
 

@@ -36,6 +36,8 @@ KEYWORDS_DIR    = WORKSPACE / "02_keywords"
 CHUNKS_DIR      = WORKSPACE / "03_chunks"
 COMPRESSED_DIR  = WORKSPACE / "04_compressed"
 
+TOKEN_LIMIT = 1450
+
 failure_log_template = Template(FAILURE_LOG)
 failure_log_url = failure_log_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["FAILURE_LOG_URL"] = str(failure_log_url)
@@ -45,11 +47,12 @@ os.environ["SEVERITY_DIR"] = str(SEVERITY_DIR)
 os.environ["KEYWORDS_DIR"] = str(KEYWORDS_DIR)
 os.environ["CHUNKS_DIR"] = str(CHUNKS_DIR)
 os.environ["COMPRESSED_DIR"] = str(COMPRESSED_DIR)
+os.environ["TOKEN_LIMIT"] = str(TOKEN_LIMIT)
 
 from loggers import LoggerCallbackHandler, agent_logger
 from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 
-TOKEN_LIMIT = 1450
+
 supervisor_user_template = (parent_folder_path/ "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
 supervisor_user = Template(supervisor_user_template).substitute(
     TOKEN_LIMIT=TOKEN_LIMIT,

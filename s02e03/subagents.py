@@ -10,9 +10,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from tools import (
     chunk_log_by_time,
     compress_chunk,
+    compress_logs,
     count_prompt_tokens,
+    count_tokens_in_file,
     inject_keywords_into_merge,
     keyword_log_search,
+    merge_new_logs,
     read_file,
     recompress_final,
     severity_log_filter,
@@ -41,8 +44,9 @@ CHUNKS_DIR = os.getenv('CHUNKS_DIR')
 COMPRESSED_DIR = os.getenv('COMPRESSED_DIR')
 
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
+seeker_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_description.md").read_text(encoding="utf-8")
 compressor_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "compressor_system.md").read_text(encoding="utf-8")
-
+compressor_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "compressor_description.md").read_text(encoding="utf-8")
 # | Agent      | Rekomendowany model     | Powód                                      |
 # | ---------- | ----------------------- | ------------------------------------------ |
 # | seeker     | openai/gpt-4.1-mini     | Dobry tool calling, tani, 1M context       |
@@ -60,24 +64,12 @@ seeker_model = ChatOpenRouter(
 
 _seeker = create_agent(
     model=seeker_model,
-    tools=[keyword_log_search, severity_log_filter, chunk_log_by_time],
+    tools=[keyword_log_search, severity_log_filter],
     system_prompt=seeker_system,
     name="seeker",
 )
 
-@tool("seeker", description=(
-    "Use this tool to search a very large system log file on disk. "
-    "The agent saves results to disk and returns a result_json path — "
-    "pass this path to subsequent tools, never request raw content. "
-    "In a single call, pass ALL related keywords at once "
-    "(e.g. synonyms, component IDs, related subsystems). "
-    "Do NOT make separate calls for 'leak', then 'water', then 'WTANK' — "
-    "pass them all in one task. "
-    "Always specify which file to search: "
-    "- First pass: use FAILURE_LOG path (produces severity.json) "
-    "- Deep search: use severity.json from first pass (faster, preserves line references) "
-    "Provide precise instruction in the 'task' parameter."
-))
+@tool("seeker", description=seeker_description)
 def call_seeker(task: str) -> str:
     result = _seeker.invoke(
         {"messages": [{"role": "user", "content": task}]},
@@ -99,45 +91,18 @@ compressor_model = ChatOpenRouter(
 )
 _compressor = create_agent(
     model=compressor_model,
-
-    tools=[
-        read_file,                 
-        save_compressed_chunk,
-        merge_compressed_chunks,
-        count_prompt_tokens,
-        save_final_report,
-        inject_keywords_into_merge,
-        sort_merge_by_line_number,
-        compress_chunk,
-        recompress_final,
+    tools = [
+        count_tokens_in_file, # Twoje nowe narzędzie do liczenia tokenów z pliku
+        merge_new_logs,       # Łączy nowe znaleziska ze starymi (Krok 6)
+        compress_logs         # Główny silnik roboczy (Krok 3 i rekompresja)
     ],
+
     system_prompt=compressor_system,
     name="compressor",
 )
 
 
-@tool("compressor", description=(
-    "Use this tool to compress log chunks into a token-efficient final_report.log. "
-    "STAGE 1: Pass a list of chunk_NNN.json file paths (from chunk_log_by_time). "
-    "The agent compresses ALL chunks, then AUTOMATICALLY proceeds to Stage 2. "
-    "Returns path to final_report.log only after Stage 2 is complete. "
-    "Do NOT expect intermediate results — Compressor runs Stage 1 and Stage 2 in sequence. "
-    "Line numbers are preserved — they reference the original source log file. "
-    "STAGE 2: The agent merges all compressed chunks, sorts by line number, "
-    "verifies token count, and re-compresses if over TOKEN_LIMIT. "
-    "Saves merged_compressed.json and final_report.log to COMPRESSED_DIR. "
-    "FEEDBACK LOOP ITERATION: If Central Command requests more detail, "
-    "pass new keyword chunk paths AND overwrite flag to Compressor. "
-    "Specify overwrite=False when Central asks about a NEW component not yet in report. "
-    "Specify overwrite=True when Central asks about a component ALREADY in report "
-    "that needs richer detail. "
-    "RE-COMPRESSION: If Supervisor rejects the result as too long, "
-    "call compressor again with TOKEN_LIMIT only — no chunk paths needed. "
-    "Always include TOKEN_LIMIT in every call. "
-    "Returns path to final_report.log. "
-    "BEFORE calling send_request: read the file and verify token count "
-    "with count_prompt_tokens. Only send when tokens <= TOKEN_LIMIT."
-))
+@tool("compressor", description=compressor_description)
 def call_compressor(task: str) -> str:
     result = _compressor.invoke(
         {"messages": [{"role": "user", "content": task}]},

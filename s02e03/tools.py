@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import sys
+from time import time
 from typing import Literal, Optional, Tuple
 from langchain_core.tools import tool
 import os
@@ -36,42 +37,72 @@ KEYWORDS_DIR = os.getenv('KEYWORDS_DIR')
 SEVERITY_DIR = os.getenv('SEVERITY_DIR')
 CHUNKS_DIR = os.getenv('CHUNKS_DIR')
 COMPRESSED_DIR = os.getenv('COMPRESSED_DIR')
+TOKEN_LIMIT = int(os.getenv("TOKEN_LIMIT"))
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 MAX_TOOL_ITERATIONS = 10 
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 102
 
 
-@tool("send_request")
-def send_request(compressed_logs: str) -> dict:
-    """
-    Sends the final, compressed logs to the central server for verification.
-    Use this tool ONLY when you have a final result from the Compressor agent
-    and have confirmed it does not exceed the token limit.
-    Returns the technicians' feedback or a flag.
-    """
-    agent_logger.info(f"[send_request] Sending logs (length: {len(compressed_logs)} chars)")
-    
-    payload = SolutionUrlRequest(
-        apikey=AI_DEVS_SECRET,
-        task=TASK_NAME,
-        answer=AnswerModel(logs=compressed_logs)
-    )
-    
-    response = requests.post(
-        SOLUTION_URL,
-        json=payload.model_dump()
-    )
-    
-    agent_logger.info(f"[send_request] HTTP Status: {response.status_code}")
-    
-    if not response.ok:
-        error_body = response.json() if response.content else {"code": response.status_code, "message": "Unknown error"}
-        agent_logger.error(f"[send_request] API error: body={error_body}")
-        return error_body
-        
-    return response.json()
+import os
+import requests
+from langchain_core.tools import tool
+from loggers import agent_logger
 
+@tool
+def send_request(file_path: str) -> str:
+    """
+    Wysyła gotowy, skompresowany raport do Centrali (SOLUTION_URL) w celu oceny.
+    KRYTYCZNE: Zawsze podawaj pełną ścieżkę do pliku 'final_report.log'.
+    Zwraca odpowiedź z Centrali (flagę {FLG:...} lub feedback do dalszej analizy).
+    """
+    solution_url = os.getenv("SOLUTION_URL")
+    
+    # 1. Odczyt pliku
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            log_content = f.read().strip()
+    except Exception as e:
+        agent_logger.error(f"[send_request] Błąd odczytu pliku: {e}")
+        raise RuntimeError(f"Nie można odczytać pliku {file_path}. Błąd: {e}") from e
+
+    if not log_content:
+        raise RuntimeError(f"Plik {file_path} jest pusty. Zleć Compressorowi ponowną kompresję.")
+
+    # 2. Struktura payloadu
+    payload = {
+        "task": os.getenv("TASK_NAME", "failure"),
+        "apikey": os.getenv("AI_DEVS_SECRET"),
+        "answer": {
+            "logs": log_content
+        }
+    }
+    
+    # 3. Wysyłka i "miękkie" logowanie błędów
+    try:
+        agent_logger.info(f"[send_request] Wysyłanie pliku {file_path} do Centrali (Długość: {len(log_content)} znaków)...")
+        response = requests.post(solution_url, json=payload)
+        
+        # Próba wyciągnięcia JSON-a i wiadomości od Centrali
+        try:
+            resp_data = response.json()
+            central_message = resp_data.get("message", response.text)
+        except ValueError:
+            central_message = response.text
+            
+        # Zamiast wywalać skrypt wyjątkiem (raise), ZWRACAMY feedback agentowi!
+        if not response.ok:
+            agent_logger.warning(f"[send_request] ODRZUCENIE (Kod {response.status_code}): {central_message}")
+            return f"CENTRAL COMMAND REJECTED THE REPORT. Feedback: {central_message}"
+            
+        # Jeśli odpowiedź to 200 OK (czyli prawdopodobnie mamy flagę!)
+        agent_logger.info(f"[send_request] SUKCES: {central_message}")
+        return f"CENTRAL COMMAND ACCEPTED THE REPORT. Response: {central_message}"
+        
+    except requests.exceptions.RequestException as e:
+        agent_logger.error(f"[send_request] Błąd sieciowy: {e}")
+        raise RuntimeError(f"Błąd sieci podczas łączenia z Centralą: {e}") from e
+    
 @tool
 def scan_flag(text: str) -> Optional[str]:
     """Search for a flag in format {FLG:...} in the given text.
@@ -159,6 +190,30 @@ def count_prompt_tokens(prompt: str, model_name: str = "gpt-5-mini") -> int:
     return count
 
 @tool
+def count_tokens_in_file(file_path: str, model_name: str = "gpt-5-mini") -> int:
+    """
+    Reads a file from disk and counts the number of tokens in its content.
+    Use this tool to verify if a file (like final_report.log) is within the TOKEN_LIMIT.
+    Returns the token count as an integer, or an error message if the file cannot be read.
+    """
+    if not os.path.exists(file_path):
+        agent_logger.warning(f"[count_tokens_in_file] File not found: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
+        
+    try:
+        # Używamy błędów 'replace' na wypadek dziwnych znaków, żeby nie przerwać liczenia
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+            
+        _, count = encode_prompt(content, model_name)
+        agent_logger.info(f"[count_tokens_in_file] file={file_path} tokens={count}")
+        return count
+        
+    except Exception as e:
+        agent_logger.error(f"[count_tokens_in_file] Error reading {file_path}: {e}")
+        raise ValueError(f"Error reading file: {e}")
+
+@tool
 def get_current_datetime(cron: str) -> str:
     """
     Returns the current date, time, or full datetime as an ISO string.
@@ -176,53 +231,80 @@ def get_current_datetime(cron: str) -> str:
     agent_logger.info(f"[get_current_datetime] result={result} cron={cron}")
     return result
 
-
 class SeverityFilterInput(BaseModel):
     file_path: str = Field(
-        description="Path to the source failure.log file"
+        description="Path to the source full log file (e.g. failure_2026-03-21.log)."
     )
     levels: list[str] = Field(
         default=["WARN", "ERRO", "CRIT"],
-        description="List of severity levels to filter for"
-    )
-    
-class KeywordSearchInput(BaseModel):
-    file_path: str = Field(
-        description="Path to severity.json from severity_log_filter. Always pass .json — never raw .log."
-    )
-    keywords: list[str] = Field(
-        description="List of keywords to search for (e.g. ['pump', 'WTRPMP', 'cavitation'])"
-    )
-    mode: Literal["any", "all"] = Field(
-        default="any",
-        description="'any' = line contains ANY keyword, 'all' = line contains ALL keywords"
-    )
-    use_regex: bool = Field(
-        default=False,
-        description="Whether to treat keywords as regular expressions"
-    )
-    case_sensitive: bool = Field(
-        default=False,
-        description="Whether search should be case sensitive"
+        description="List of severity levels to filter for."
     )
 
 @tool(args_schema=SeverityFilterInput)
 def severity_log_filter(
     file_path: str,
     levels: list[str] = ["WARN", "ERRO", "CRIT"],
-) -> dict:
+) -> str:  # <-- Zmieniamy z dict na str!
     """
-    FIRST-PASS TOOL. Use this as the first step on failure.log.
+    FIRST-PASS TOOL. Use this as the first step on the main failure.log file.
     Filters the log keeping only lines matching severity levels (WARN/ERRO/CRIT).
-    Saves results to SEVERITY_DIR/severity.log and SEVERITY_DIR/severity.json.
-    Always pass severity.json (not .log) to subsequent tools to preserve
-    line references back to the original failure.log.
-    Returns: {"result_log": "...", "result_json": "..."}
+    Stops after finding the first 50 errors (start of the failure cascade).
+    Returns ONLY the string path to the generated severity.json file.
+    Always pass this returned path directly to subsequent tools (like Compressor).
     """
-    output_file = str(Path(SEVERITY_DIR) / "severity")
-    result = severity_filter(file_path=file_path, output_file=output_file, levels=levels)
-    agent_logger.info(f"[severity_log_filter] file={file_path} output={output_file}")
-    return result
+    # Traktujemy to jako ścieżkę bazową (bez rozszerzenia) dla _save_results
+    output_base = str(Path(SEVERITY_DIR) / "severity")
+    
+    try:
+        # Zakładam, że w log_filters.py funkcja 'severity_filter' potrafi
+        # przyjąć output_base/output_file i zapisać JSONa (np. przez _save_results)
+        severity_filter(
+            file_path=file_path, 
+            output_file=output_base, # Przekazujemy ścieżkę bazową
+            levels=levels,
+            # max_lines=50,  
+            max_lines=10,  
+        )
+        
+        agent_logger.info(f"[severity_log_filter] file={file_path} output={output_base}")
+        
+        # Zwracamy CZYSTY STRING do pliku JSON. 
+        # Agent weźmie tę ścieżkę i wprost wklei ją do Compressora!
+        return f"{output_base}.json"
+        
+    except Exception as e:
+        agent_logger.error(f"[severity_log_filter] Błąd: {e}")
+        # Wyrzucamy wyjątek, żeby LangChain wyłapał Tool Error
+        raise RuntimeError(f"Błąd podczas filtrowania logów: {e}") from e
+    
+class KeywordSearchInput(BaseModel):
+    file_path: str = Field(
+        description=(
+            "Path to the log file. Use 'severity.json' if you are looking for specific errors. "
+            "CRITICAL: If the Supervisor asks for context, environment logs, or what happened BEFORE an error, "
+            "you MUST pass the original full 'failure_YYYY-MM-DD.log' file, because severity.json does not contain [INFO] logs!"
+        )
+    )
+    keywords: list[str] = Field(
+        description=(
+            "CRITICAL: You must provide a list of 5 to 10 broad English synonyms or related terms. "
+            "NEVER pass just 1 or 2 words! "
+            "Example for 'sensor': ['sensor', 'probe', 'detector', 'telemetry', 'gauge', 'measurement']. "
+            "Example for 'environment': ['environment', 'atmosphere', 'vibration', 'radiation', 'humidity', 'surroundings']."
+        )
+    )
+    mode: Literal["any", "all"] = Field(
+        default="any",
+        description="Always use 'any' (logical OR) to maximize the chance of finding relevant lines."
+    )
+    use_regex: bool = Field(
+        default=False,
+        description="Whether to treat keywords as regular expressions."
+    )
+    case_sensitive: bool = Field(
+        default=False,
+        description="Whether search should be case sensitive."
+    )
 
 @tool(args_schema=KeywordSearchInput)
 def keyword_log_search(
@@ -234,12 +316,13 @@ def keyword_log_search(
 ) -> dict:
     """
     DEEP SEARCH TOOL. Use when the Supervisor asks about a specific subsystem or component.
-    IMPORTANT: Always pass severity.json (output of severity_log_filter) — never raw .log.
-    Passing .json is significantly faster and preserves line references to failure.log.
-    Saves results to KEYWORDS_DIR/keywords.log and KEYWORDS_DIR/keywords.json.
+    Saves results to KEYWORDS_DIR with a unique timestamp.
     Returns: {"result_log": "...", "result_json": "..."}
     """
-    output_base = str(Path(KEYWORDS_DIR) / "keywords")
+    # Generujemy unikalną nazwę pliku dla każdego wyszukiwania (zapobiega nadpisywaniu!)
+    timestamp = int(time())
+    output_base = str(Path(KEYWORDS_DIR) / f"keywords_{timestamp}")
+    
     result = keyword_search(
         file_path=file_path,
         output_base=output_base,
@@ -248,6 +331,7 @@ def keyword_log_search(
         use_regex=use_regex,
         case_sensitive=case_sensitive,
     )
+    
     agent_logger.info(f"[keyword_log_search] file={file_path} keywords={keywords}")
     return result
 
@@ -482,25 +566,6 @@ def sort_merge_by_line_number(
     agent_logger.info(f"[sort_merge_by_line_number] out={output_path}")
     return output_path
 
-# @tool
-# def save_recompressed_final(compressed_lines: list[dict]) -> str:
-#     """
-#     COMPRESSOR STAGE 3b TOOL. Use when count_prompt_tokens on final_report.log
-#     exceeds TOKEN_LIMIT. Overwrites final_report.log and final_report.json.
-
-#     REPEAT until within TOKEN_LIMIT:
-#       1. read_file(final_report.json)          — structured data with line numbers
-#       2. Shorten lines — keep CRIT, compress WARN/ERRO aggressively, drop duplicates
-#       3. save_recompressed_final(shortened_lines)
-#       4. count_prompt_tokens(final_report.log) — if still over, go to step 1
-
-#     Returns path to final_report.log (pass this to Supervisor when done).
-#     """
-#     output_base = str(Path(COMPRESSED_DIR) / "final_report")
-#     paths = _save_results(output_base, compressed_lines)
-#     agent_logger.info(f"[save_recompressed_final] lines={len(compressed_lines)}")
-#     return paths["result_log"]
-
 @tool
 def recompress_final() -> str:
     """
@@ -517,7 +582,7 @@ def recompress_final() -> str:
     """
     
     lines = _load_lines(str(Path(COMPRESSED_DIR) / "final_report.json"))
-    compressed_lines = _compress_lines(lines)
+    compressed_lines = _compress_lines_previos(lines)
 
     output_base = str(Path(COMPRESSED_DIR) / "final_report")
     paths = _save_results(output_base, compressed_lines)
@@ -526,13 +591,125 @@ def recompress_final() -> str:
     return paths["result_log"]
 
 
+@tool
+def compress_chunk(chunk_path: str) -> str:
+    """
+    COMPRESSOR STAGE 1 TOOL. Reads a chunk .json, compresses all lines using LLM,
+    saves result to COMPRESSED_DIR. Use this for every chunk — ONE BY ONE.
+    Skips saving if chunk_NNN_compressed.json already exists in COMPRESSED_DIR.
+    Returns path to chunk_NNN_compressed.json.
+
+    Args:
+        chunk_path: Path to chunk_NNN.json from CHUNKS_DIR.
+    """
+    lines = _load_lines(chunk_path)
+    compressed_lines = _compress_lines_previos(lines)
+    result = _save_compressed_chunk(chunk_path, compressed_lines)
+    return result["result_json"]
+
+
+@tool
+def merge_new_logs(base_json_path: str, new_logs_json_path: str, output_base_path: str) -> str:
+    """
+    Łączy stary raport z nowymi logami od Seekera, sortuje je chronologicznie
+    po numerach linii i usuwa duplikaty.
+    W parametrze 'output_base_path' podaj ścieżkę bazową bez rozszerzenia (np. 'merged_logs').
+    Zwraca WYŁĄCZNIE ścieżkę do połączonego pliku JSON.
+    """
+    
+    # 1. NAPRAWA ŚCIEŻKI WEJŚCIOWEJ (base_json_path)
+    base_path = Path(base_json_path)
+    if not base_path.is_absolute() or not base_path.exists():
+        if "final_report" in base_path.name:
+            base_path = Path(COMPRESSED_DIR) / "final_report.json"
+            base_json_path = str(base_path)  # Podmieniamy zmienną w locie!
+
+    # 2. NAPRAWA ŚCIEŻKI WYJŚCIOWEJ (output_base_path)
+    # Wymuszamy, aby wynik łączenia zawsze lądował w folderze z kompresjami
+    if not output_base_path or not Path(output_base_path).is_absolute():
+        output_base_path = str(Path(COMPRESSED_DIR) / "merged_report")
+    
+    try:
+        base_logs = _load_lines(base_json_path)
+        new_logs = _load_lines(new_logs_json_path)
+        
+        merged_dict = {item['line']: item for item in base_logs + new_logs}
+        sorted_logs = [merged_dict[line] for line in sorted(merged_dict.keys())]
+        
+        _save_results(output_base_path, sorted_logs)
+        
+        # Zwracamy czystą ścieżkę
+        return f"{output_base_path}.json"
+        
+    except Exception as e:
+        agent_logger.error(f"[merge_new_logs] Błąd: {e}")
+        # Twarde rzucenie wyjątku, by LangChain to wyłapał jako Tool Error
+        raise RuntimeError(f"Błąd podczas łączenia plików: {e}") from e
+
+@tool
+def compress_logs(input_json_path: str, instructions: str = "") -> str:
+    """
+    Kompresuje surowe logi z pliku wejściowego.
+    Zapisuje wynik jako 'final_report.log' oraz 'final_report.json'.
+    Zwraca WYŁĄCZNIE ścieżkę do wygenerowanego pliku 'final_report.log'.
+    """
+    # Ustalamy bazę zapisu (np. workspace/04_compressed/final_report)
+    # ---------------- do poprawyy jest ta sciezka bo chyba nie dostajemy final report
+    out_base = str(Path(COMPRESSED_DIR) / "final_report")
+    
+    try:
+        # 1. Wczytanie (Twoja funkcja)
+        lines = _load_lines(input_json_path)
+        
+        # 2. Kompresja z walidacją (Twoja zaktualizowana funkcja)
+        compressed_lines = _compress_lines(lines, limit=TOKEN_LIMIT, instructions=instructions)
+        
+        # 3. Zapis wyników do final_report.json oraz final_report.log (Twoja funkcja)
+        _save_results(out_base, compressed_lines)
+        
+        # 4. Zwracamy czystą ścieżkę .log do policzenia tokenów i wysyłki
+        return f"{out_base}.log"
+        
+    except Exception as e:
+        agent_logger.error(f"[compress_logs] Błąd: {e}")
+        raise RuntimeError(f"Błąd podczas kompresji: {e}") from e
 
 compression_model = ChatOpenRouter(
-    model="google/gemini-3-flash-preview",
+    # model="google/gemini-3-flash-preview",
+    model="openai/gpt-5-mini",
     temperature=0,
 )
+def _compress_lines(lines: list[dict], limit: int, instructions: str = "") -> list[dict]:
+    # Twój dotychczasowy prompt rozbudowany o nowe zmienne
+    prompt = f"""Skróć poniższe logi, zmieść się w limicie {limit} tokenów.
+Instrukcje od Supervisora: {instructions}
 
-def _compress_lines(lines: list[dict]) -> list[dict]:
+Zasady:
+- Extract component ID (e.g. WTANK07) into its own bracket
+- Remove seconds from timestamp
+- Keep ALL lines — one output entry per input line
+- Return ONLY a JSON array, no markdown, no explanation:
+[{{\"line\": <original_line_number>, \"content\": \"<compressed line>\"}}]
+
+Input:
+{json.dumps(lines, ensure_ascii=False)}"""
+
+    response = compression_model.invoke(prompt)
+
+    try:
+        compressed = json.loads(response.content)
+    except json.JSONDecodeError:
+        agent_logger.warning(f"[_compress_lines] JSON decode error — falling back to original")
+        return lines
+
+    if not validate_compression(lines, compressed):
+        agent_logger.warning(f"[_compress_lines] validation failed "
+                             f"— falling back to original")
+        return lines
+
+    return compressed
+
+def _compress_lines_previos(lines: list[dict]) -> list[dict]:
     """
     Compresses a list of log lines using LLM.
     Returns compressed list or original on failure.
@@ -565,19 +742,3 @@ Input:
         return lines
 
     return compressed
-
-@tool
-def compress_chunk(chunk_path: str) -> str:
-    """
-    COMPRESSOR STAGE 1 TOOL. Reads a chunk .json, compresses all lines using LLM,
-    saves result to COMPRESSED_DIR. Use this for every chunk — ONE BY ONE.
-    Skips saving if chunk_NNN_compressed.json already exists in COMPRESSED_DIR.
-    Returns path to chunk_NNN_compressed.json.
-
-    Args:
-        chunk_path: Path to chunk_NNN.json from CHUNKS_DIR.
-    """
-    lines = _load_lines(chunk_path)
-    compressed_lines = _compress_lines(lines)
-    result = _save_compressed_chunk(chunk_path, compressed_lines)
-    return result["result_json"]
