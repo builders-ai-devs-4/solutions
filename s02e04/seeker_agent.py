@@ -6,7 +6,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from tools import get_file_list, get_help_from_mailbox, post_action_to_mailbox, read_json, _RECURSION_LIMIT, scan_flag, submit_solution
+from tools import get_file_list, get_help_from_mailbox, post_action_to_mailbox, read_json, _RECURSION_LIMIT, save_json, scan_flag, submit_solution
 
 from loggers import LoggerCallbackHandler, agent_logger
 from langchain_openrouter import ChatOpenRouter
@@ -19,6 +19,11 @@ DATA_FOLDER_PATH    = os.environ["DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 MAILBOX_URL = os.getenv('MAILBOX_URL')
+
+MAILBOX_MESSAGES_DIR = os.environ["MAILBOX_MESSAGES_DIR"]
+MAILBOX_HELP_DIR = os.environ["MAILBOX_HELP_DIR"]
+HELP_FILE_NAME = os.environ["HELP_FILE_NAME"]
+
 
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md"
                      ).read_text(encoding="utf-8")
@@ -43,6 +48,7 @@ seeker = create_agent(
         submit_solution,
         read_json,
         scan_flag,
+        save_json
     ],
     system_prompt=seeker_system,
     name="seeker",

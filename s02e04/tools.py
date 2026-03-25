@@ -27,101 +27,123 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 MAILBOX_URL = os.getenv('MAILBOX_URL')
 
-WORKSPACE = os.getenv('WORKSPACE')
-CHUNKS_DIR = os.getenv('CHUNKS_DIR')
-COMPRESSED_DIR = os.getenv('COMPRESSED_DIR')
-MAILBOX_HELP_DIR = os.getenv("MAILBOX_HELP_DIR")
+MAILBOX_MESSAGES_DIR = os.environ["MAILBOX_MESSAGES_DIR"]
+MAILBOX_HELP_DIR = os.environ["MAILBOX_HELP_DIR"]
+HELP_FILE_NAME = os.environ["HELP_FILE_NAME"]
+
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 MAX_TOOL_ITERATIONS = 10 
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 102
 
 
-from langchain_core.tools import tool
-from loggers import agent_logger
-
 @tool
-def get_help_from_mailbox(action = {"action": "help",
-        "page": 1}, save_json = True) -> dict:
+def get_help_from_mailbox(action: dict = {"action": "help", "page": 1}, save_json: bool = True) -> dict:
     """
-    Fetch help information from the mailbox.
-    Returns:
-        A dictionary containing the help information.
-    """
+    Fetch the official API documentation and help information from the Mailbox API.
+    By default, it automatically saves the output to the mailbox help directory.
     
+    Returns:
+        A dictionary containing the API capabilities, available actions, and required parameters.
+    """
     response = _post_request_to_mailbox(action)
+    agent_logger.info(f"[get_help_from_mailbox] Mailbox feedback received.")
+    
     if save_json:
-        file_path = Path(MAILBOX_HELP_DIR) / "mailbox_help.json"
-        save_json_file(file_path, response.json())
-    return response.json()
+        # 1. Upewnij się, że katalog na pomoc istnieje przed próbą zapisu!
+        Path(MAILBOX_HELP_DIR).mkdir(parents=True, exist_ok=True)
+        
+        # 2. Teraz bezpiecznie zapisz plik
+        file_path = Path(MAILBOX_HELP_DIR) / HELP_FILE_NAME
+        save_json_file(file_path, response, append=False)
+        agent_logger.info(f"[get_help_from_mailbox] Mailbox feedback saved to {file_path}")
+        
+    return response
 
 @tool
 def read_json(file_path: str) -> dict:
-    """Read a JSON file and return its contents as a dictionary."""
+    """
+    Read a JSON file from the local filesystem and return its contents as a dictionary.
+    Use this to inspect previously downloaded metadata or full messages.
+    """
     path = Path(file_path)
+    agent_logger.info(f"[read_json] Reading JSON file: {file_path}")
+    
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
+
+@tool
+def save_json(file_path: str, data: dict, append: bool = True) -> str:
+    """
+    Save a Python dictionary as a JSON file to the specified file path.
+    Can append to an existing file or overwrite it.
+    """
+    result = str(save_json_file(file_path, data, append=append))
+    agent_logger.info(f"[save_json] JSON file saved: {file_path}")
+    return result
+
 @tool
 def post_action_to_mailbox(action: dict) -> dict:
     """
-    Send an action to Mailbox and return its response.
-    Args:
-        action: A dictionary containing the action details (e.g., {"action": "getInbox", "page": 1}).
-    Returns:
-        A dictionary containing Mailbox's response (e.g., inbox data or feedback).
+    Send an action payload to the Mailbox API, auto-save the result, and return the response.
+    The result is automatically saved in the messages directory as `<action_name>_results.json`.
     """
     response = _post_request_to_mailbox(action)
-    try:
-        feedback = response.json()
-        agent_logger.info(f"[post_action_to_mailbox] Mailbox feedback: {feedback}")
-        return feedback
-    except ValueError:
-        agent_logger.error(f"[post_action_to_mailbox] Invalid JSON response: {response.text}")
-        raise ValueError(f"Invalid JSON response from Mailbox: {response.text}")
+    
+    # Automatyczny, elastyczny zapis na dysk
+    action_name = action.get("action", "unknown")
+    
+    # Upewniamy się, że folder istnieje
+    Path(MAILBOX_MESSAGES_DIR).mkdir(parents=True, exist_ok=True)
+    
+    # Generujemy nazwę pliku na podstawie akcji, np. "search_results.json" lub "getThread_results.json"
+    dynamic_filename = f"{action_name}_results.json"
+    file_path = Path(MAILBOX_MESSAGES_DIR) / dynamic_filename
+    
+    # Zapisujemy plik (nadpisując poprzednie wyniki dla tej samej akcji, żeby nie robić bałaganu)
+    save_json_file(file_path, response, append=False)
+    agent_logger.info(f"[post_action_to_mailbox] Saved {action_name} results to {file_path}")
 
+    return response
 
 def _post_request_to_mailbox(action: dict) -> dict:
     """
-    Internal helper function to send a POST request to the Mailbox with the given action.
-    Handles errors gracefully and logs all interactions.
+    Internal helper function to send a POST request to the Mailbox API.
+    Gracefully handles network errors and unexpected JSON decoding failures.
     """    
-
-    # 2. Payload structure
     payload = {
-        "apikey": os.getenv("AI_DEVS_SECRET"),
+        "apikey": AI_DEVS_SECRET,
     }
-    payload.update(action)  # Merge the action dict into the payload
+    payload.update(action)
     
-    # 3. Send and 'soft' error logging
     try:
-        agent_logger.info(f"[post_request_to_mailbox] Sending answer to Mailbox {(json.dumps(action))}")
+        agent_logger.info(f"[post_request_to_mailbox] Sending action to Mailbox: {json.dumps(action)}")
         response = requests.post(MAILBOX_URL, json=payload)
         
-        # Try to extract JSON and the message from Mailbox
         try:
             resp_data = response.json()
-            mailbox_message = resp_data.get("message", response.text)
         except ValueError:
-            mailbox_message = response.text
-        # Instead of raising an exception and exiting, return feedback to the agent
+            resp_data = {"error": "Invalid JSON returned by server", "raw_text": response.text}
+
         if not response.ok:
-            agent_logger.warning(f"[post_request_to_mailbox] REJECTED (Code {response.status_code}): {mailbox_message}")
+            agent_logger.warning(f"[post_request_to_mailbox] REJECTED (Code {response.status_code})")
             return resp_data
 
-        agent_logger.info(f"[post_request_to_mailbox] SUCCESS: {mailbox_message}")
+        agent_logger.info(f"[post_request_to_mailbox] SUCCESS")
         return resp_data
         
     except requests.exceptions.RequestException as e:
         agent_logger.error(f"[post_request_to_mailbox] Network error: {e}")
         raise RuntimeError(f"Network error while connecting to Mailbox: {e}") from e
-
+    
+    
 @tool
 def submit_solution(password: str, date: str, confirmation_code: str) -> dict:
     """
-    Submit the found password, date, and confirmation code to the Central Command (Solution URL).
-    Use this ONLY when you have found all three pieces of information.
+    Submit the extracted password, date, and confirmation code to the Central Command (Solution URL).
+    Call this tool ONLY when you have successfully found ALL THREE pieces of information in the emails.
     """
     
     payload = SolutionUrlRequest(
@@ -148,9 +170,10 @@ def submit_solution(password: str, date: str, confirmation_code: str) -> dict:
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
-    """Search for a flag in format {FLG:...} in the given text.
-    Returns the flag string if found, or None if not present.
-    Call this after every server response to detect task completion."""
+    """
+    Search for a success flag matching the pattern {FLG:...} in the given text.
+    Call this tool to analyze the server's response after submitting a solution to verify task completion.
+    """
     match = FLAG_RE.search(text)
     if match:
         agent_logger.info(f"[FLAG FOUND] {match.group(0)}")

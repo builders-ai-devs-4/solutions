@@ -85,11 +85,15 @@ def read_json_file(file_path: str | Path) -> dict:
     with open(file_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def save_json_file(file_path: str | Path, data: dict, override: bool = True) -> Path:
+def save_json_file(file_path: str | Path, data: dict, append: bool = True) -> Path:
     """Zapisuje słownik do pliku .json. Tworzy foldery jeśli nie istnieją."""
     path = Path(file_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists() or override:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+    if append and path.is_file():
+        existing_data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(existing_data, list):
+            existing_data.append(data)
+        elif isinstance(existing_data, dict):
+            existing_data.update(data)
+        data = existing_data
+    path.write_text(json.dumps(data, indent=4), encoding="utf-8")
     return path

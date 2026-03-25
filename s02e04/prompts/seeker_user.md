@@ -8,18 +8,20 @@ Your objective is to extract three specific pieces of information from our mailb
 Here are your environment details:
 - **Mailbox API URL:** $MAILBOX_URL
 - **Solution Submission URL:** $SOLUTION_URL
-- **Task Data Folder:** $TASK_DATA_FOLDER_PATH
 - **Mailbox Help Directory:** $MAILBOX_HELP_DIR
+- **Mailbox Messages Directory:** $MAILBOX_MESSAGES_DIR
+- **Help File Name:** $HELP_FILE_NAME
 
 **Crucial Intel to start:**
 We know that someone named Wiktor sent an email from the `proton.me` domain. This is your best starting point.
 
 **Your immediate next steps:**
-1. Call `get_help_from_mailbox` to understand the exact JSON payloads required by the Mailbox API.
-2. Use `post_action_to_mailbox` to perform a search (e.g., using the `proton.me` intel).
-3. Fetch the full message bodies of the search results to read their contents. DO NOT guess the content from the subjects!
-4. Once you have found the date, password, and confirmation code, use `submit_solution`.
-5. If the central command rejects your answer, read the error message, adjust your search, and try again.
-6. When you receive a `{FLG:...}` token, use `scan_flag` to verify it and finish the task.
+1. Check `$MAILBOX_HELP_DIR` for `$HELP_FILE_NAME`. If it's missing, use `get_help_from_mailbox`. Read the file to understand the API.
+2. Use `post_action_to_mailbox` with the `search` action using the `proton.me` intel.
+3. Read `$MAILBOX_MESSAGES_DIR/search_results.json` using `read_json` to find message IDs.
+4. Use `post_action_to_mailbox` with the `getMessages` action for those IDs.
+5. Read `$MAILBOX_MESSAGES_DIR/getMessages_results.json` using `read_json` to extract the required data.
+6. Use `submit_solution` to send your findings. If rejected, adjust your search and try again.
+7. Once you get a `{FLG:...}` token, use `scan_flag` to finish the task.
 
 Good luck! Start your investigation now.
