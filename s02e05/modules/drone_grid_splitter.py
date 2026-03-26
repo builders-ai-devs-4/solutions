@@ -34,7 +34,6 @@ Output layout
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
@@ -43,12 +42,11 @@ import numpy as np
 
 # Adjust the import path if grid_utils lives in a different location
 sys.path.append(str(Path(__file__).parent.parent / "libs"))
-from grid_utils import (
+from modules.grid_utils import (
     find_grid_lines,
     cut_cells,
     save_cells,
     save_visualization,
-    save_img,
     save_csv,
 )
 

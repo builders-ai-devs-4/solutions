@@ -3,13 +3,15 @@ import re
 import sys
 from typing import Optional
 from langchain_core.tools import tool
+from langchain_core.prompts import ChatPromptTemplate
 import os
+from langchain_openrouter import ChatOpenRouter
 import requests
 from modules.tiktoken import encode_prompt
 from datetime import datetime, date
 # from modules.models import SolutionUrlRequest, AnswerModel
 from modules.drone_grid_splitter import detect_grid, get_row_col_lines, read_image
-from modules.models import CellCoord, CellCoord, DroneGridInput, DroneGridOutput, HtmlToMarkdownInput, HtmlToMarkdownOutput
+from modules.models import CellCoord, CellCoord, DroneDocumentation, DroneDocumentation, DroneGridInput, DroneGridOutput, HtmlToMarkdownInput, HtmlToMarkdownOutput
 from modules.tomarkdown import transform_html_to_markdown
 
 
@@ -29,12 +31,10 @@ DATA_FOLDER_PATH    = os.environ["DATA_FOLDER_PATH"]
 PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
+MAP_FOLDER_PATH = os.environ["MAP_FOLDER_PATH"]
+DOCS_FOLDER_PATH = os.environ["DOCS_FOLDER_PATH"]
 DRONE_MAP_URL = os.getenv('DRONE_MAP_URL')
-
-MAILBOX_MESSAGES_DIR = os.environ["MAILBOX_MESSAGES_DIR"]
-MAILBOX_HELP_DIR = os.environ["MAILBOX_HELP_DIR"]
-HELP_FILE_NAME = os.environ["HELP_FILE_NAME"]
-
+PWR_ID_CODE = os.getenv('PWR_ID_CODE')
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 MAX_TOOL_ITERATIONS = 10 
@@ -54,7 +54,7 @@ def drone_grid_split(image_path: str, output_dir: str = "output") -> tuple[str, 
     Use this tool when you need to extract and index rectangular regions
     from a drone photograph that has a visible red grid drawn on it.
     """
-    img_path   = Path(image_path).resolve()
+    image_path   = Path(image_path).resolve()
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -63,6 +63,7 @@ def drone_grid_split(image_path: str, output_dir: str = "output") -> tuple[str, 
     
     n_rows = len(row_lines) - 1
     n_cols = len(col_lines) - 1
+    agent_logger.info(f"[drone_grid_split] image_path={image_path} n_rows={n_rows} n_cols={n_cols}")
     
     raw_cells  = cut_cells(img_bgr, row_lines, col_lines)
     meta_table = save_cells(raw_cells, output_dir, prefix="cell")
@@ -70,6 +71,7 @@ def drone_grid_split(image_path: str, output_dir: str = "output") -> tuple[str, 
     vis_path = output_dir / "visualization.png"
     save_visualization(img_bgr, row_lines, col_lines, vis_path)
     save_csv(meta_table, output_dir / "cells.csv")
+    agent_logger.info(f"[drone_grid_split] vis_path={vis_path} meta_table_rows={len(meta_table)}")
 
     cells_dir   = output_dir / "cells"
     cell_files  : list[str]       = []
@@ -94,11 +96,11 @@ def drone_grid_split(image_path: str, output_dir: str = "output") -> tuple[str, 
         n_cols             = n_cols,
     )
 
-    return result
+    return result.model_dump_json(indent=2), result
 
 
 @tool(args_schema=HtmlToMarkdownInput, response_format="content_and_artifact")
-def html_to_markdown(html_url: str, output_dir: str = "output") -> tuple[str, HtmlToMarkdownOutput]:
+def html_to_markdown_tool(html_url: str, output_dir: str = "output") -> tuple[str, HtmlToMarkdownOutput]:
     """Downloads an HTML page from a URL, converts it to clean Markdown,
     and saves the result to disk.
 
@@ -121,9 +123,55 @@ def html_to_markdown(html_url: str, output_dir: str = "output") -> tuple[str, Ht
         filename=markdown_file_path.name,
         html_url=html_url
     )
+    agent_logger.info(f"[html_to_markdown_tool] html_url={html_url} markdown_file_path={markdown_file_path}")
+    
+    return result.model_dump_json(indent=2), result
 
-    return json.dumps(result), result
-
+@tool
+def extract_drone_documentation(md_path: str, output_json_path: str) -> str:
+    """
+    Use this tool to read raw drone API documentation from a Markdown file,
+    fix its formatting using an LLM, and save it as a structured JSON file.
+    Call this tool only when you know the Markdown file has been updated or needs initial parsing.
+    """
+    try:
+        # Read the raw file
+        with open(md_path, "r", encoding="utf-8") as file:
+            raw_markdown = file.read()
+            agent_logger.info(f"[extract_drone_documentation] md_path={md_path} raw_markdown_length={len(raw_markdown)}")
+        # Initialize the extraction model (e.g., a cheaper/faster model for parsing)
+        
+        llm = ChatOpenRouter(
+            model="openai/gpt-4o",
+            temperature=0,
+        )
+        
+        structured_llm = llm.with_structured_output(DroneDocumentation)
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a data analysis expert. Analyze the raw API documentation.
+            Fix inconsistencies, group the methods by their functional areas, and return a valid JSON.
+            Do not invent new API functions."""),
+            ("user", "Documentation:\n\n{documentation}")
+        ])
+        
+        # Processing pipeline
+        chain = prompt | structured_llm
+        result = chain.invoke({"documentation": raw_markdown})
+        
+        # Save to JSON file
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result.model_dump(), f, ensure_ascii=False, indent=2)
+            agent_logger.info(f"[extract_drone_documentation] JSON content: {json.dumps(result.model_dump(), ensure_ascii=False, indent=2)}")
+        agent_logger.info(f"[extract_drone_documentation] md_path={md_path} output_json_path={output_json_path}")
+        
+        return f"Success: Extracted data from {md_path} and saved to {output_json_path}."
+        
+    except FileNotFoundError:
+        return f"Error: Source file {md_path} does not exist."
+    except Exception as e:
+        return f"An unexpected error occurred during extraction: {str(e)}"
+    
 @tool
 def read_json(file_path: str) -> dict:
     """

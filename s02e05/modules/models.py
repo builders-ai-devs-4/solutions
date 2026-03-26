@@ -2,26 +2,22 @@ import json
 from pydantic import BaseModel, Field
 from typing import List
 
-# Definiujemy pojedynczą metodę
 class ApiMethod(BaseModel):
-    nazwa: str = Field(description="Nazwa metody, np. set(mode)")
-    opis: str = Field(description="Opis działania metody i jej parametrów")
-    przyklad: str = Field(description="Przykład użycia, np. set(engineON)")
+    name: str = Field(description="Name of the method, e.g., set(mode)")
+    description: str = Field(description="Description of the method and its parameters")
+    example: str = Field(description="Usage example, e.g., set(engineON)")
 
-# Definiujemy kategorię (np. Sterowanie silnikami, Konfiguracja)
 class ApiCategory(BaseModel):
-    nazwa_kategorii: str = Field(description="Nazwa obszaru/kategorii z tabeli")
-    metody: List[ApiMethod] = Field(description="Lista metod należących do tej kategorii")
+    category_name: str = Field(description="Name of the area/category from the table")
+    methods: List[ApiMethod] = Field(description="List of methods belonging to this category")
 
-# Definiujemy główny dokument
 class DroneDocumentation(BaseModel):
-    urzadzenie: str = Field(description="Nazwa drona")
-    producent: str = Field(description="Producent oprogramowania")
-    informacje_ogolne: str = Field(description="Krótki opis, endpointy i wymagania requestu")
-    kategorie_api: List[ApiCategory] = Field(description="Pogrupowane metody sterowania")
-    cele_misji: List[str] = Field(description="Lista możliwych celów misji")
-    przykłady_uzycia: str = Field(description="Krótkie podsumowanie przykładów użycia w formacie tekstowym")
-
+    device_name: str = Field(description="Name of the drone")
+    manufacturer: str = Field(description="Software manufacturer")
+    general_info: str = Field(description="Short description, endpoints, and request requirements")
+    api_categories: List[ApiCategory] = Field(description="Grouped control methods")
+    mission_objectives: List[str] = Field(description="List of possible mission objectives")
+    
 class DroneGridInput(BaseModel):
     """Input parameters for the drone grid splitter tool.
 
@@ -157,7 +153,6 @@ class HtmlToMarkdownInput(BaseModel):
             "The directory is created automatically if it does not exist."
         ),
     )
-
 
 class HtmlToMarkdownOutput(BaseModel):
     """Structured output returned by the HTML-to-Markdown conversion tool.
