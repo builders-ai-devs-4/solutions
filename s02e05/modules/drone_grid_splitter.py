@@ -119,6 +119,37 @@ def detect_grid(
     return row_lines, col_lines
 
 
+def drone_grid_split(image_path: Path, output_dir: Path, margin: int = 3, min_gap: int = 80) -> None:
+    """High-level function to process a drone image and save outputs.
+
+    This is a convenience wrapper around the core functions, intended for
+    use in the CLI entry point. It loads the image, detects the grid,
+    cuts cells, and saves all outputs (cell images, visualization, CSV).
+
+    Parameters
+    ----------
+    image_path : Path
+        Path to the input drone image.
+    output_dir : Path
+        Directory where outputs will be saved. Subdirectories/files will
+        be created as needed.
+    margin : int
+        Number of pixels to trim from each cell edge when cutting.
+    min_gap : int
+        Minimum pixel distance between detected grid lines (passed to
+        ``detect_grid``).
+    """
+    img_bgr = cv2.imread(str(image_path))
+    if img_bgr is None:
+        raise ValueError(f"Cannot read image: {image_path}")
+
+    row_lines, col_lines = detect_grid(img_bgr, min_gap=min_gap)
+    cells = cut_cells(img_bgr, row_lines, col_lines, margin=margin)
+
+    table = save_cells(cells, output_dir / "cells")
+    save_visualization(img_bgr, row_lines, col_lines, output_dir / "grid_visualization.png")
+    save_csv(table, output_dir / "grid_cells.csv")
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
