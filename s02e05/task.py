@@ -20,8 +20,9 @@ SOLUTION_URL   = os.getenv('SOLUTION_URL')
 DATA_FOLDER    = os.getenv('DATA_FOLDER')
 TASK_NAME      = os.getenv('TASK_NAME')
 
-DRONE_MAP_URL = os.getenv('SOURCE_URL1')
+DRONE_MAP_TEMPLATE_URL = os.getenv('SOURCE_URL1')
 DRONE_DOCS_URL = os.getenv('SOURCE_URL2')
+PWR_ID_CODE = os.getenv('PWR_ID_CODE')
 
 current_folder = Path(__file__)
 parent_folder_path  = current_folder.parent
@@ -32,9 +33,9 @@ os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
 os.environ["DATA_FOLDER_PATH"] = str(date_folder_path)
 
-failure_log_template = Template(FAILURE_LOG)
-failure_log_url = failure_log_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
-os.environ["FAILURE_LOG_URL"] = str(failure_log_url)
+drone_map_template = Template(DRONE_MAP_TEMPLATE_URL)
+drone_map_url = drone_map_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
+os.environ["DRONE_MAP_URL"] = str(drone_map_url)
 
 
 if __name__ == "__main__":

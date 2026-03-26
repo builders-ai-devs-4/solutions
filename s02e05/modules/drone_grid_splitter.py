@@ -118,8 +118,22 @@ def detect_grid(
     col_lines = find_grid_lines(col_sum, w, min_gap=min_gap, thresh_ratio=thresh_ratio)
     return row_lines, col_lines
 
+def read_image(image_path: Path | str) -> np.ndarray:
+    """Utility function to read an image from a given path."""
+    image_path = Path(image_path)
+    img = cv2.imread(str(image_path))
+    if img is None:
+        raise ValueError(f"Could not read image at {image_path}")
+    return img
 
-def drone_grid_split(image_path: Path, output_dir: Path, margin: int = 3, min_gap: int = 80) -> None:
+def get_row_col_lines(image_path: Path | str, min_gap: int = 80) -> tuple[list[int], list[int]]:
+    """Convenience function to load an image and detect grid lines in one step."""
+    img_bgr = read_image(image_path)
+
+    row_lines, col_lines = detect_grid(img_bgr, min_gap=min_gap)
+    return row_lines, col_lines
+
+def drone_grid_split(image_path: Path | str, output_dir: Path, margin: int = 3, min_gap: int = 80) -> None:
     """High-level function to process a drone image and save outputs.
 
     This is a convenience wrapper around the core functions, intended for
@@ -154,58 +168,58 @@ def drone_grid_split(image_path: Path, output_dir: Path, margin: int = 3, min_ga
 # CLI entry point
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Split a drone photo with a red grid overlay into labelled cell images."
-    )
-    parser.add_argument("image",        help="Input image path (e.g. drone.jpg)")
-    parser.add_argument("--output",     default="output",  help="Output directory  (default: output/)")
-    parser.add_argument("--margin",     type=int, default=3,  help="Edge trim per cell in px  (default: 3)")
-    parser.add_argument("--min-gap",    type=int, default=80, help="Min gap between grid lines in px  (default: 80)")
-    args = parser.parse_args()
+# def main() -> None:
+#     parser = argparse.ArgumentParser(
+#         description="Split a drone photo with a red grid overlay into labelled cell images."
+#     )
+#     parser.add_argument("image",        help="Input image path (e.g. drone.jpg)")
+#     parser.add_argument("--output",     default="output",  help="Output directory  (default: output/)")
+#     parser.add_argument("--margin",     type=int, default=3,  help="Edge trim per cell in px  (default: 3)")
+#     parser.add_argument("--min-gap",    type=int, default=80, help="Min gap between grid lines in px  (default: 80)")
+#     args = parser.parse_args()
 
-    img_path = Path(args.image)
-    if not img_path.exists():
-        print(f"ERROR: file not found: {img_path}", file=sys.stderr)
-        sys.exit(1)
+#     img_path = Path(args.image)
+#     if not img_path.exists():
+#         print(f"ERROR: file not found: {img_path}", file=sys.stderr)
+#         sys.exit(1)
 
-    output_dir = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
+#     output_dir = Path(args.output)
+#     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading: {img_path}")
-    img_bgr = cv2.imread(str(img_path))
-    if img_bgr is None:
-        print(f"ERROR: cannot read image: {img_path}", file=sys.stderr)
-        sys.exit(1)
+#     print(f"Loading: {img_path}")
+#     img_bgr = cv2.imread(str(img_path))
+#     if img_bgr is None:
+#         print(f"ERROR: cannot read image: {img_path}", file=sys.stderr)
+#         sys.exit(1)
 
-    print("Detecting red grid lines...")
-    row_lines, col_lines = detect_grid(img_bgr, min_gap=args.min_gap)
-    n_rows, n_cols = len(row_lines) - 1, len(col_lines) - 1
-    print(f"Grid detected: {n_rows} rows x {n_cols} cols")
-    print(f"  row_lines : {row_lines}")
-    print(f"  col_lines : {col_lines}")
+#     print("Detecting red grid lines...")
+#     row_lines, col_lines = detect_grid(img_bgr, min_gap=args.min_gap)
+#     n_rows, n_cols = len(row_lines) - 1, len(col_lines) - 1
+#     print(f"Grid detected: {n_rows} rows x {n_cols} cols")
+#     print(f"  row_lines : {row_lines}")
+#     print(f"  col_lines : {col_lines}")
 
-    cells = cut_cells(img_bgr, row_lines, col_lines, margin=args.margin)
-    table = save_cells(cells, output_dir)
-    print(f"Cells saved  → {output_dir}/cells/  ({len(table)} files)")
+#     cells = cut_cells(img_bgr, row_lines, col_lines, margin=args.margin)
+#     table = save_cells(cells, output_dir)
+#     print(f"Cells saved  → {output_dir}/cells/  ({len(table)} files)")
 
-    vis_path = output_dir / "grid_visualization.png"
-    save_visualization(img_bgr, row_lines, col_lines, vis_path)
-    print(f"Vis saved    → {vis_path}")
+#     vis_path = output_dir / "grid_visualization.png"
+#     save_visualization(img_bgr, row_lines, col_lines, vis_path)
+#     print(f"Vis saved    → {vis_path}")
 
-    csv_path = output_dir / "grid_cells.csv"
-    save_csv(table, csv_path)
-    print(f"CSV saved    → {csv_path}")
+#     csv_path = output_dir / "grid_cells.csv"
+#     save_csv(table, csv_path)
+#     print(f"CSV saved    → {csv_path}")
 
-    # Pretty-print the cell table to stdout
-    print("\n=== Cell index table ===")
-    hdr = f"  {'index':>6}  {'row':>4}  {'col':>4}  {'width_px':>9}  {'height_px':>10}  file"
-    print(hdr)
-    print("  " + "-" * (len(hdr) - 2))
-    for row in table:
-        print(f"  {row['index']:>6}  {row['row']:>4}  {row['col']:>4}"
-              f"  {row['width_px']:>9}  {row['height_px']:>10}  {row['file']}")
+#     # Pretty-print the cell table to stdout
+#     print("\n=== Cell index table ===")
+#     hdr = f"  {'index':>6}  {'row':>4}  {'col':>4}  {'width_px':>9}  {'height_px':>10}  file"
+#     print(hdr)
+#     print("  " + "-" * (len(hdr) - 2))
+#     for row in table:
+#         print(f"  {row['index']:>6}  {row['row']:>4}  {row['col']:>4}"
+#               f"  {row['width_px']:>9}  {row['height_px']:>10}  {row['file']}")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
