@@ -131,3 +131,52 @@ class DroneGridOutput(BaseModel):
     n_cols: int = Field(
         description="Total number of columns detected in the grid (horizontal cell count)."
     )
+
+class HtmlToMarkdownInput(BaseModel):
+    """Input parameters for the HTML-to-Markdown conversion tool.
+
+    Only ``html_url`` is required. ``output_dir`` defaults to ``"output"``
+    relative to the current working directory.
+
+    The tool fetches the HTML document at ``html_url``, strips navigation,
+    forms, and other non-content elements (aggressive preset), then converts
+    the remaining content to clean Markdown using ATX-style headings.
+    """
+
+    html_url: str = Field(
+        description=(
+            "Fully qualified URL of the HTML page to download and convert. "
+            "Must include the scheme (http:// or https://)."
+        )
+    )
+    output_dir: str = Field(
+        default="output",
+        description=(
+            "Directory where the resulting Markdown file will be saved. "
+            "The filename is derived from the URL (e.g. 'page.html' → 'page.md'). "
+            "The directory is created automatically if it does not exist."
+        ),
+    )
+
+
+class HtmlToMarkdownOutput(BaseModel):
+    """Structured output returned by the HTML-to-Markdown conversion tool.
+
+    The ``markdown_file_path`` field contains the absolute path to the saved
+    Markdown file and can be passed directly to downstream tools that need
+    to read or process the converted content.
+    """
+
+    markdown_file_path: str = Field(
+        description=(
+            "Absolute path to the saved Markdown file on disk."
+        )
+    )
+    filename: str = Field(
+        description=(
+            "Filename of the saved Markdown file, e.g. 'page.md'."
+        )
+    )
+    html_url: str = Field(
+        description="Original URL of the HTML source that was converted."
+    )
