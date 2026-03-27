@@ -356,11 +356,17 @@ def describe_drone_map(
     map_b64 = read_file_base64(drone_view_map_path)
 
     map_prompt = (
-        "This is an aerial drone photograph. "
-        "Describe what you see on the entire map: the main structures, "
-        "terrain features, and how the content is distributed across the grid cells. "
-        "This description will be used as context "
-        "for a navigation agent."
+        "This is a raw aerial drone photograph of a power plant terrain, WITHOUT any grid overlaid. "
+        "Describe the entire scene comprehensively as a single continuous landscape. "
+        "Focus on the layout of the main structures, natural terrain features, "
+        "roads, vegetation, and water bodies. Use natural spatial references "
+        "(e.g., 'in the upper left', 'towards the center', 'in the southern part'). "
+        "CRITICAL: Do NOT attempt to divide the image into grid cells, rows, or columns, "
+        "and do NOT use any coordinate numbers. "
+        "There is a main dam located in this area. To help locate it, "
+        "the water color near the dam has been intentionally intensified. "
+        "Explicitly describe the general spatial area where this intensified water color is visible. "
+        "This general description will serve as foundational context."
     )
     
     map_msg  = _build_image_message(map_b64, map_prompt)
@@ -373,9 +379,12 @@ def describe_drone_map(
     vis_b64 = read_file_base64(grid_visualization_path)
 
     overall_prompt = (
-        "This is an aerial drone photograph divided into a labelled grid. "
+        "This is an aerial drone photograph of a power plant terrain divided into a labelled grid. "
         "Describe what you see on the entire map: the main structures, "
         "terrain features, and how the content is distributed across the grid cells. "
+        "CRITICAL: You must definitively locate the main dam. The water color near the dam "
+        "has been intentionally intensified to make it stand out. You MUST explicitly identify "
+        "and state the exact grid cell containing the dam based on this visual cue. "
         "Be concise but thorough — this description will be used as context "
         "for a navigation agent."
     )
@@ -393,9 +402,12 @@ def describe_drone_map(
     agent_logger.info(f"[describe_drone_map] Found {len(cell_files)} cell files")
 
     cell_prompt = (
-        "This is a single cell ({index}) cropped from a larger aerial drone photograph. "
+        "This is a single cell ({index}) cropped from a larger aerial drone photograph of a power plant. "
         "Describe only what is visible in this cell: structures, terrain, water, "
-        "vegetation, objects. Be specific and concise."
+        "vegetation, objects. CRITICAL: We are looking for the main dam, indicated by "
+        "intentionally intensified water color. If you observe this intensified water color "
+        "or dam structures, you MUST explicitly state that this cell contains the dam. "
+        "Be specific and concise."
     )
 
     cell_descriptions: list[CellDescription] = []
