@@ -94,6 +94,12 @@ class DroneGridOutput(BaseModel):
     to its grid position.
     """
 
+    drone_view_map_path: str = Field(
+        description=(
+            "Absolute path to the map downloaded from map_url in PNG format. "
+            "This image is used as the input for the drone grid splitter tool."
+        )
+    )
     cells_dir: str = Field(
         description=(
             "Absolute path to the directory that contains all extracted cell "
@@ -175,3 +181,92 @@ class HtmlToMarkdownOutput(BaseModel):
     html_url: str = Field(
         description="Original URL of the HTML source that was converted."
     )
+
+
+class DescribeDroneMapInput(BaseModel):
+    """Input parameters for the drone map description tool.
+
+    Expects the output paths produced by ``drone_grid_split``.
+    The tool reads the grid visualization for an overall description,
+    then reads each cell image individually for a per-cell description.
+    All results are saved to ``output_json_path``.
+    """
+
+    drone_view_map_path: str = Field(
+        description=(
+            "Absolute path to the map downloaded from map_url in PNG format. "
+        )
+    )
+    grid_visualization_path: str = Field(
+        description=(
+            "Absolute path to the annotated grid visualization PNG "
+            "(produced by drone_grid_split as grid_visualization)."
+        )
+    )
+    cells_dir: str = Field(
+        description=(
+            "Absolute path to the directory containing individual cell PNG files "
+            "(produced by drone_grid_split as cells_dir). "
+            "Files must follow the naming convention cell_RxC.png."
+        )
+    )
+    output_json_path: str = Field(
+        description=(
+            "Absolute path where the JSON description file will be saved, "
+            "e.g. '/data/drone/map_description.json'."
+        )
+    )
+
+
+class CellDescription(BaseModel):
+    """Visual description of a single grid cell.
+
+    ``index``, ``cell_x``, ``cell_y`` mirror the CellCoord fields from
+    DroneGridOutput so the two outputs can be joined on ``index``.
+    """
+
+    index: str = Field(
+        description="Cell label in RxC format, e.g. '2x3' (row x col, 1-based)."
+    )
+    cell_x: int = Field(
+        description="Column index, starting at 1 (left → right)."
+    )
+    cell_y: int = Field(
+        description="Row index, starting at 1 (top → bottom)."
+    )
+    description: str = Field(
+        description="Natural language description of the cell's visual content."
+    )
+
+
+class MapDescriptionOutput(BaseModel):
+    """Structured output of the drone map description tool.
+    ``map_description`` provides a high-level overview of the entire map, while the list 
+    of ``overall_description`` covers the whole photograph including the
+    spatial relationship between cells.  ``cells`` provides a fine-grained
+    description for each individual cell, ordered row-first.
+    Both ``overall_description`` and ``cells[i].description`` are ready
+    to be embedded or used as context in subsequent LLM calls.
+    """
+    map_description: str = Field(
+        description=("High-level description of the entire drone photograph without cell-level details."
+        )
+    )
+    
+    overall_description: str = Field(
+        description=(
+            "High-level description of the entire drone photograph: "
+            "what structures, terrain features, and grid layout are visible, "
+            "and how the cells relate to each other spatially."
+        )
+    )
+    cells: list[CellDescription] = Field(
+        description=(
+            "Per-cell visual descriptions, ordered row-first: "
+            "1x1, 1x2, …, NxM. Each entry corresponds to one cell PNG."
+        )
+    )
+    output_json_path: str = Field(
+        description="Absolute path to the saved JSON file."
+    )
+

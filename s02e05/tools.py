@@ -6,12 +6,13 @@ from langchain_core.tools import tool
 from langchain_core.prompts import ChatPromptTemplate
 import os
 from langchain_openrouter import ChatOpenRouter
+from langchain.messages import SystemMessage, HumanMessage
 import requests
 from modules.tiktoken import encode_prompt
 from datetime import datetime, date
 # from modules.models import SolutionUrlRequest, AnswerModel
 from modules.drone_grid_splitter import detect_grid, get_row_col_lines, read_image
-from modules.models import CellCoord, CellCoord, DroneDocumentation, DroneDocumentation, DroneGridInput, DroneGridOutput, HtmlToMarkdownInput, HtmlToMarkdownOutput
+from modules.models import CellCoord, CellCoord, CellDescription, DescribeDroneMapInput, DroneDocumentation, DroneDocumentation, DroneGridInput, DroneGridOutput, HtmlToMarkdownInput, HtmlToMarkdownOutput, MapDescriptionOutput
 from modules.tomarkdown import transform_html_to_markdown
 
 
@@ -94,6 +95,7 @@ def drone_grid_split(image_path: str, output_dir: str = "output") -> tuple[str, 
         grid_visualization = str(vis_path),
         n_rows             = n_rows,
         n_cols             = n_cols,
+        drone_view_map_path = str(image_path),
     )
 
     return result.model_dump_json(indent=2), result
@@ -277,3 +279,158 @@ def detect_mimetype(file_path: Path) -> str:
     info = detect_file_type(file_path)
     agent_logger.info(f"[detect_mimetype] file={file_path} mime={info.mime_from_name}")
     return info.mime_from_name
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _build_image_message(base64_data: str, prompt: str) -> HumanMessage:
+    """Build a LangChain HumanMessage with an inline base64 image."""
+    return HumanMessage(content=[
+        {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{base64_data}"},
+        },
+        {
+            "type": "text",
+            "text": prompt,
+        },
+    ])
+
+
+def _parse_cell_index(filename: str) -> tuple[int, int]:
+    """Extract (row, col) from a filename like 'cell_2x3.png'."""
+    match = re.search(r"cell_(\d+)x(\d+)", filename)
+    if not match:
+        raise ValueError(f"Cannot parse cell index from filename: {filename}")
+    return int(match.group(1)), int(match.group(2))
+
+
+def _get_llm():
+    """Initialise the vision-capable LLM (reads model from env or uses default)."""
+    from langchain_openrouter import ChatOpenRouter
+    model = os.getenv("VISION_MODEL", "openai/gpt-4o")
+    return ChatOpenRouter(model=model, temperature=0)
+
+
+# ---------------------------------------------------------------------------
+# LangChain @tool
+# ---------------------------------------------------------------------------
+
+@tool(args_schema=DescribeDroneMapInput, response_format="content_and_artifact")
+def describe_drone_map(
+    drone_view_map_path: str,
+    grid_visualization_path: str,
+    cells_dir: str,
+    output_json_path: str,
+) -> tuple[str, MapDescriptionOutput]:
+    """Describes a drone aerial photograph using a vision LLM.
+
+    Step 0 — Overall description: sends original map image (not the visualization)
+    to the vision model and asks for a high-level description of the entire
+    map, including visible structures, terrain, and spatial cell layout.
+
+    Step 1 — Overall description: sends the annotated grid visualization
+    to the vision model and asks for a high-level description of the entire
+    map, including visible structures, terrain, and spatial cell layout.
+
+    Step 2 — Per-cell descriptions: iterates over all cell PNG files in
+    ``cells_dir`` (sorted row-first by RxC index), sends each to the vision
+    model, and collects a focused description of that cell's content.
+
+    Step 3 — Saves the combined result to ``output_json_path`` as JSON.
+
+    Returns a tuple of (content, artifact):
+    - content  : JSON string for the LLM — overall description + cell list.
+    - artifact : MapDescriptionOutput Pydantic model for downstream code,
+                 accessible via ToolMessage.artifact.
+
+    Use this tool after drone_grid_split has produced the visualization and
+    cell images. Pass its output paths directly as input here.
+    """
+    llm = _get_llm()
+
+    # ── Step 0: Overall map description ────────────────────────────────────
+    agent_logger.info(f"[describe_drone_map] Reading map image: {drone_view_map_path}")
+    map_b64 = read_file_base64(drone_view_map_path)
+
+    map_prompt = (
+        "This is an aerial drone photograph. "
+        "Describe what you see on the entire map: the main structures, "
+        "terrain features, and how the content is distributed across the grid cells. "
+        "This description will be used as context "
+        "for a navigation agent."
+    )
+    
+    map_msg  = _build_image_message(map_b64, map_prompt)
+    map_resp = llm.invoke([map_msg])
+    map_description = map_resp.content
+    agent_logger.info(f"[describe_drone_map] Map description length: {len(map_description)}")
+
+    # ── Step 1: Overall map description ────────────────────────────────────
+    agent_logger.info(f"[describe_drone_map] Reading visualization: {grid_visualization_path}")
+    vis_b64 = read_file_base64(grid_visualization_path)
+
+    overall_prompt = (
+        "This is an aerial drone photograph divided into a labelled grid. "
+        "Describe what you see on the entire map: the main structures, "
+        "terrain features, and how the content is distributed across the grid cells. "
+        "Be concise but thorough — this description will be used as context "
+        "for a navigation agent."
+    )
+    overall_msg  = _build_image_message(vis_b64, overall_prompt)
+    overall_resp = llm.invoke([overall_msg])
+    overall_description = overall_resp.content
+    agent_logger.info(f"[describe_drone_map] Overall description length: {len(overall_description)}")
+
+    # ── Step 2: Per-cell descriptions ──────────────────────────────────────
+    cells_path = Path(cells_dir)
+    cell_files = sorted(
+        [f for f in cells_path.glob("cell_*.png")],
+        key=lambda f: _parse_cell_index(f.name),
+    )
+    agent_logger.info(f"[describe_drone_map] Found {len(cell_files)} cell files")
+
+    cell_prompt = (
+        "This is a single cell ({index}) cropped from a larger aerial drone photograph. "
+        "Describe only what is visible in this cell: structures, terrain, water, "
+        "vegetation, objects. Be specific and concise."
+    )
+
+    cell_descriptions: list[CellDescription] = []
+    for cell_file in cell_files:
+        row_idx, col_idx = _parse_cell_index(cell_file.name)
+        index = f"{row_idx}x{col_idx}"
+
+        agent_logger.info(f"[describe_drone_map] Describing cell {index}")
+        cell_b64  = read_file_base64(str(cell_file))
+        cell_msg  = _build_image_message(
+            cell_b64,
+            cell_prompt.format(index=index),
+        )
+        cell_resp = llm.invoke([cell_msg])
+
+        cell_descriptions.append(CellDescription(
+            index       = index,
+            cell_x      = col_idx,
+            cell_y      = row_idx,
+            description = cell_resp.content,
+        ))
+
+    # ── Step 3: Save to JSON ────────────────────────────────────────────────
+    result = MapDescriptionOutput(
+        overall_description = overall_description,
+        cells               = cell_descriptions,
+        output_json_path    = str(Path(output_json_path).resolve()),
+        map_description     = map_description,
+    )
+
+    out_path = Path(output_json_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(result.model_dump_json(indent=2))
+
+    agent_logger.info(f"[describe_drone_map] Saved JSON: {output_json_path}")
+
+    return result.model_dump_json(indent=2), result

@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 from string import Template
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from libs.loggers import LoggerCallbackHandler, agent_logger
 from libs.generic_helpers import get_path_from_url, save_file
 
 from pathlib import Path
@@ -40,6 +39,7 @@ drone_map_url = drone_map_template.substitute(ai_devs_secret=AI_DEVS_SECRET)
 os.environ["DRONE_MAP_URL"] = str(drone_map_url)
 
 from seeker_agent import SEEKER_CONFIG, seeker
+from libs.loggers import LoggerCallbackHandler, agent_logger
 
 seeker_user_template = (parent_folder_path/ "prompts" / "seeker_user.md").read_text(encoding="utf-8")
 seeker_user = Template(seeker_user_template).substitute(
