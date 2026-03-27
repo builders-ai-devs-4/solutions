@@ -270,3 +270,11 @@ class MapDescriptionOutput(BaseModel):
         description="Absolute path to the saved JSON file."
     )
 
+class DroneInstructionsInput(BaseModel):
+    """Input parameters for sending commands to the drone API."""
+    instructions: list[str] = Field(
+        description=(
+            "A list of exact instruction strings to be executed by the drone in sequence. "
+            "Examples: ['selfCheck', 'set(engineON)', 'set(3,4)', 'flyToLocation', 'set(destroy)']"
+        )
+    )

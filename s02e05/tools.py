@@ -12,7 +12,7 @@ from modules.tiktoken import encode_prompt
 from datetime import datetime, date
 # from modules.models import SolutionUrlRequest, AnswerModel
 from modules.drone_grid_splitter import detect_grid, get_row_col_lines, read_image
-from modules.models import CellCoord, CellCoord, CellDescription, DescribeDroneMapInput, DroneDocumentation, DroneDocumentation, DroneGridInput, DroneGridOutput, HtmlToMarkdownInput, HtmlToMarkdownOutput, MapDescriptionOutput
+from modules.models import CellCoord, CellCoord, CellDescription, DescribeDroneMapInput, DroneDocumentation, DroneDocumentation, DroneGridInput, DroneGridOutput, DroneInstructionsInput, HtmlToMarkdownInput, HtmlToMarkdownOutput, MapDescriptionOutput
 from modules.tomarkdown import transform_html_to_markdown
 
 
@@ -446,3 +446,36 @@ def describe_drone_map(
     agent_logger.info(f"[describe_drone_map] Saved JSON: {output_json_path}")
 
     return result.model_dump_json(indent=2), result
+
+@tool(args_schema=DroneInstructionsInput)
+def send_drone_instructions(instructions: list[str]) -> str:
+    """
+    Sends a sequence of instructions to the drone's API hub.
+    Use this to test commands, fly the drone, and execute the final mission.
+    The API will return errors if your instructions are invalid or out of order.
+    Read the returned errors carefully to adjust your next attempt.
+    """
+    url = SOLUTION_URL
+    payload = {
+        "apikey": AI_DEVS_SECRET,
+        "task": "drone",
+        "answer": {
+            "instructions": instructions
+        }
+    }
+    
+    agent_logger.info(f"[send_drone_instructions] Sending {len(instructions)} instructions to {url}")
+    
+    try:
+        response = requests.post(url, json=payload)
+        response_text = response.text
+        agent_logger.info(f"[send_drone_instructions] Response: {response_text}")
+        
+        # Optionally, scan for flag immediately
+        scan_flag(response_text)
+        
+        return response_text
+    except Exception as e:
+        error_msg = f"Failed to connect to the drone API: {str(e)}"
+        agent_logger.error(error_msg)
+        return error_msg

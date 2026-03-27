@@ -1,36 +1,28 @@
-Hello Seeker. We need to prepare our drone operation environment by testing our core data processing tools. 
+Hello Seeker. We are initiating the drone strike mission. 
 
-Please execute the following tasks sequentially. Do not skip any steps.
+Your objective is to locate the dam on the map, configure the drone, and execute a strike on the dam using the drone's API.
 
-### Task 1: Process Documentation (HTML to Markdown)
-Fetch the drone API documentation from the web and convert it to Markdown.
-- **Source URL**: $DRONE_DOCS_URL
-- **Output Directory**: $DOCS_FOLDER_PATH
-- **Action**: Use the `html_to_markdown_tool` to perform this conversion. Take note of the absolute path of the generated Markdown file returned by the tool.
+Please execute the following operations:
 
-### Task 2: Extract Structured Data (Markdown to JSON)
-Using the Markdown file generated in Task 1, extract the structured API documentation into a JSON format.
-- **Input File**: The Markdown file path returned from Task 1.
-- **Output JSON Path**: $DOCS_FOLDER_PATH/drone_api.json
-- **Action**: Use the `extract_drone_documentation` tool to parse the Markdown and save the JSON.
+### PHASE 1: Data Verification (Make Extraction Optional)
+Before running heavy extraction tools, check if the processed data already exists.
+1. Use the `get_file_list` tool on `$DOCS_FOLDER_PATH` and `$MAP_FOLDER_PATH`.
+2. Look for the API documentation JSON (e.g., `drone_api.json`) and the map descriptions JSON.
+3. If they EXIST: Skip the data extraction tools (`html_to_markdown_tool`, `drone_grid_split`, `describe_drone_map`, etc.) and use `read_json` to load their contents directly into your context.
+4. If they DO NOT EXIST: Execute the full data processing pipeline (download HTML, convert to Markdown, extract to JSON; download map, split grid, run vision analysis) to generate them.
 
-### Task 3: Process Drone Map (Grid Split)
-Split the target drone map image into individual grid cells for future analysis.
-- **Target Map URL**: $DRONE_MAP_URL
-- **Map Folder**: $MAP_FOLDER_PATH
-- **Action**: 
-  1. First, use the `save_file_from_url` tool to download the map from the Target Map URL into the Map Folder.
-  2. Next, use the `get_file_list` tool on the Map Folder to find the exact local absolute path of the newly downloaded map image.
-  3. Finally, use the `drone_grid_split` tool to process that local file and generate the cells in the same folder. Take note of the folder path containing the resulting grid cells.
-
-### Task 4: Describe Map Grid Cells (Vision Analysis)
-Analyze the visual content of the generated drone map grid cells.
-- **Input Folder**: The folder path containing the resulting grid cells from Task 3 (which should be $MAP_FOLDER_PATH).
-- **Output Folder**: $MAP_FOLDER_PATH
-- **Action**: Use the `describe_drone_map` tool. Use the output folder from Task 3 as your `input_folder`, and save the visual descriptions in JSON format into the specified Output Folder.
+### PHASE 2: Mission Execution
+Once you have read the API documentation JSON and the Map Descriptions JSON, proceed with the strike:
+1. **Target Acquisition:** Read the map descriptions JSON. Identify the exact grid coordinates (column 'x' and row 'y') where the DAM is located (look for the intentionally intensified water color).
+2. **Draft Instructions:** Based on the `drone_api.json`, draft the exact sequence of instructions required to fly to those coordinates and destroy the target. Remember, the drone needs to know its destination, height, engine state, etc., before flying.
+3. **Execute:** Use the `send_drone_instructions` tool to send your array of commands to the Hub.
+4. **React and Adapt:** Read the response from the tool. 
+   - If you receive an error, analyze what went wrong (e.g., missing prerequisite command, wrong parameter format), modify your instruction list, and use `send_drone_instructions` again.
+   - You may use `hardReset` if you get stuck in a bad state.
+5. **Completion:** Repeat the Execute and React loop until the API returns a success message containing `{FLG:...}`. 
 
 ### Additional Context
 - Power ID Code: $PWR_ID_CODE
 - Solution Submission URL: $SOLUTION_URL
 
-Once all four tasks are complete, please provide a brief summary confirming the exact paths of the generated files (Markdown, JSON API docs) and the folder paths containing the split grid images and their Vision descriptions.
+Take a deep breath, verify your data files first, and then commence the API strike.
