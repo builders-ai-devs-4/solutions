@@ -24,7 +24,7 @@ DOCS_FOLDER_PATH = os.environ["DOCS_FOLDER_PATH"]
 DRONE_MAP_URL = os.getenv('DRONE_MAP_URL')
 PWR_ID_CODE = os.getenv('PWR_ID_CODE')
 
-from tools import describe_drone_map, drone_grid_split, extract_drone_documentation, get_file_list, html_to_markdown_tool, read_json, _RECURSION_LIMIT, save_file_from_url, save_json, scan_flag
+from tools import describe_drone_map, drone_grid_split, extract_drone_documentation, get_file_list, html_to_markdown_tool, read_json, _RECURSION_LIMIT, save_file_from_url, save_json, scan_flag, send_drone_instructions
 
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md"
                      ).read_text(encoding="utf-8")
@@ -50,7 +50,8 @@ seeker = create_agent(
         get_file_list,
         save_file_from_url,
         read_json,
-        # scan_flag,
+        send_drone_instructions,
+        scan_flag,
         save_json
     ],
     system_prompt=seeker_system,

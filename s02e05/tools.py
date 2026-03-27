@@ -458,21 +458,19 @@ def send_drone_instructions(instructions: list[str]) -> str:
     url = SOLUTION_URL
     payload = {
         "apikey": AI_DEVS_SECRET,
-        "task": "drone",
+        "task": TASK_NAME,
         "answer": {
             "instructions": instructions
         }
     }
     
-    agent_logger.info(f"[send_drone_instructions] Sending {len(instructions)} instructions to {url}")
+    agent_logger.info(f"[send_drone_instructions] Sending {instructions} instructions to {url}")
     
     try:
         response = requests.post(url, json=payload)
         response_text = response.text
         agent_logger.info(f"[send_drone_instructions] Response: {response_text}")
-        
-        # Optionally, scan for flag immediately
-        scan_flag(response_text)
+  
         
         return response_text
     except Exception as e:
