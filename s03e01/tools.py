@@ -22,6 +22,11 @@ PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 DB_PATH = os.environ["DB_PATH"]
+TASK           = os.environ["TASK"]
+SOLUTION_URL   = os.environ["SOLUTION_URL"]
+DATA_FOLDER    = os.environ["DATA_FOLDER"]
+TASK_NAME      = os.environ["TASK_NAME"]
+AI_DEVS_SECRET = os.environ["AI_DEVS_SECRET"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 MAX_TOOL_ITERATIONS = 10 
@@ -113,7 +118,7 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
     validated_error_files: set[str] = {
         r.filename
         for r in cache.get_validation_results()
-        if r.sensor_errors  # only truly failed ones
+        if r.range_errors or r.inactive_errors  # ← właściwe pola z modelu
     }
 
     # Deduplication: note → list of files that use it
@@ -226,9 +231,9 @@ def send_anomalies_to_central(filenames: list[str]) -> tuple[str, dict]:
         Content: Central server response with verification result.
         Artifact: Full request payload sent to central.
     """
-    apikey       = os.environ["AIDEVS_SECRET"]
-    solution_url = os.environ["SOLUTION_URL"]
-    task_name    = os.environ["TASK_NAME"]
+    apikey       = AI_DEVS_SECRET
+    solution_url = SOLUTION_URL
+    task_name    = TASK_NAME
 
     # Deduplicate i posortuj
     anomaly_files = sorted(set(filenames))
