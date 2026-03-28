@@ -20,7 +20,7 @@ PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 
-from tools import analyze_operator_notes, _RECURSION_LIMIT, run_sensor_validation
+from tools import analyze_operator_notes, _RECURSION_LIMIT, run_sensor_validation, scan_flag, send_anomalies_to_central
 
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md"
                      ).read_text(encoding="utf-8")
@@ -41,6 +41,8 @@ seeker = create_agent(
     tools=[
         analyze_operator_notes,
         run_sensor_validation,
+        send_anomalies_to_central,
+        scan_flag
     ],
     system_prompt=seeker_system,
     name="seeker",

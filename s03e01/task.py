@@ -40,19 +40,16 @@ os.environ["DB_PATH"] = str(db_path)
 CHUNK_SIZE = 50
 os.environ["CHUNK_SIZE"] = str(CHUNK_SIZE)
 
-# from seeker_agent import SEEKER_CONFIG, seeker
+from seeker_agent import SEEKER_CONFIG, seeker
 from libs.loggers import LoggerCallbackHandler, agent_logger
 
-# seeker_user_template = (parent_folder_path/ "prompts" / "seeker_user.md").read_text(encoding="utf-8")
-# seeker_user = Template(seeker_user_template).substitute(
-#     PWR_ID_CODE=PWR_ID_CODE,
-#     DRONE_MAP_URL=drone_map_url,
-#     DRONE_DOCS_URL=DRONE_DOCS_URL,
-#     MAP_FOLDER_PATH=map_folder_path,
-#     DOCS_FOLDER_PATH=docs_folder_path,  
-#     SOLUTION_URL=SOLUTION_URL,
-#     )
+seeker_user_template = (
+    Path(parent_folder_path) / "prompts" / "seeker_user.md"
+).read_text(encoding="utf-8")
 
+seeker_user = Template(seeker_user_template).substitute(
+    DB_PATH=str(db_path),
+)
 
 if __name__ == "__main__":
     

@@ -11,8 +11,9 @@ import requests
 from datetime import datetime, date
 from modules.models import SensorReading, SensorValidationResult, ValidationResult
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
-from s03e01.database import SensorDatabase, run_validation, run_validation
+from database import SensorDatabase, run_validation, run_validation
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -57,11 +58,17 @@ def run_sensor_validation(db_path: str) -> tuple[str, list[SensorValidationResul
 
     anomalies: list[SensorValidationResult] = []
 
+    agent_logger.info(f"[run_sensor_validation] chunk_size={CHUNK_SIZE}")
+    
     for i in range(0, len(readings), CHUNK_SIZE):
         chunk   = readings[i : i + CHUNK_SIZE]
         results = run_validation(chunk)
         anomalies.extend(r for r in results if r.is_anomaly)
-
+        agent_logger.info(f"[run_sensor_validation] processed chunk {i // CHUNK_SIZE + 1}/{(len(readings) + CHUNK_SIZE - 1) // CHUNK_SIZE}")
+    cache.store_validation(anomalies)
+    
+    agent_logger.info(f"[run_sensor_validation] anomalies={len(anomalies)})")
+    
     content = json.dumps(
         [
             {
@@ -77,8 +84,6 @@ def run_sensor_validation(db_path: str) -> tuple[str, list[SensorValidationResul
         indent=2,
     )
     return content, anomalies
-
-
 
 @tool(response_format="content_and_artifact")
 def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResult]]:
@@ -102,6 +107,8 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
                   one result per flagged reading.
     """
 
+    agent_logger.info(f"[analyze_operator_notes] chunk_size={CHUNK_SIZE}")
+    
     with SensorDatabase(Path(db_path)) as db:
         readings = db.load_readings()
 
@@ -140,20 +147,30 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
         )
 
         response = chain.invoke({"readings": payload})
+
+        try:
+            flagged = json.loads(response.content)
+        except json.JSONDecodeError:
+            agent_logger.warning(f"[analyze_operator_notes] Invalid JSON from LLM for chunk {i}, skipping.")
+            flagged = []
+            continue
         flagged  = json.loads(response.content)
 
-        for item in flagged:
+        for item in flagged:                        # ← wewnątrz tej samej pętli
             key     = (item["filename"], item["timestamp"])
             reading = readings_index.get(key)
-
             if reading:
                 anomalies.append(SensorValidationResult(
-                    reading        = reading,
-                    operator_errors= [item["reason"]],
+                    reading         = reading,
+                    operator_errors = [item["reason"]],
                 ))
 
+    cache.store_notes(anomalies)
+    
     if not anomalies:
         return "No suspicious operator notes detected.", []
+    
+    agent_logger.info(f"[analyze_operator_notes] anomalies={len(anomalies)})")
 
     content = json.dumps(
         [
@@ -183,7 +200,6 @@ def scan_flag(text: str) -> Optional[str]:
     agent_logger.info(f"[scan_flag] no flag in text (len={len(text)})")
     return None
 
-from pydantic import BaseModel, Field
 
 class SendAnomaliesInput(BaseModel):
     anomalies: list[SensorValidationResult] = Field(
@@ -217,6 +233,7 @@ def send_anomalies_to_central(anomalies: list[SensorValidationResult]) -> tuple[
     task_name    = os.environ["TASK_NAME"]
 
     anomaly_files = sorted({r.filename for r in anomalies})
+    agent_logger.info(f"[send_anomalies_to_central] anomaly_files={len(anomaly_files)})")
 
     payload = {
         "apikey": api_key,
@@ -228,6 +245,7 @@ def send_anomalies_to_central(anomalies: list[SensorValidationResult]) -> tuple[
 
     response = requests.post(solution_url, json=payload)
     response.raise_for_status()
+    agent_logger.info(f"[send_anomalies_to_central] response_status={response.status_code}")
 
     result  = response.json()
     content = json.dumps(result, ensure_ascii=False, indent=2)
