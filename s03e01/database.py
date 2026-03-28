@@ -1,5 +1,93 @@
 from pathlib import Path
 import duckdb
 
-DB_PATH = Path("sensors.db")
-conn = duckdb.connect(DB_PATH) 
+from modules.models import SensorReading, SensorValidationResult, SensorValidationResult
+from validator import validate
+
+def create_db(db_file_path: Path | str)  -> str:
+    db_file_path = Path(db_file_path)
+    db_file_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = duckdb.connect(db_file_path)
+    conn.close() 
+    return str(db_file_path)
+
+def insert_data(db_path: Path | str, source_dir: Path | str) -> duckdb.DuckDBPyConnection:
+    
+    json_glob = Path(source_dir) / "*.json"
+    json_glob_str = json_glob.as_posix()
+    conn = duckdb.connect(db_path)
+    result = conn.sql(f"""
+        SELECT *, filename
+        FROM read_json_auto('{json_glob_str}', filename=true)
+    """).fetchdf()
+    
+    return result
+    
+def load_readings(conn: duckdb.DuckDBPyConnection) -> list[SensorReading]:
+    """
+    Fetch all records from the sensors table and deserialize into SensorReading instances.
+
+    Args:
+        conn: Open DuckDB connection with a populated 'sensors' table.
+
+    Returns:
+        List of SensorReading instances, one per database record.
+    """
+    columns = list(SensorReading.model_fields.keys())  # ← ze schematu Pydantic
+    columns_sql = ", ".join(columns)
+
+    rows = conn.sql(f"SELECT {columns_sql} FROM sensors").fetchall()
+
+    return [
+        SensorReading.from_db_row(dict(zip(columns, row)))
+        for row in rows
+    ]
+
+
+
+def run_validation(readings: list[SensorReading]) -> list[SensorValidationResult]:
+    """
+    Run validation on all loaded SensorReading instances.
+
+    Args:
+        readings: List of SensorReading instances from load_readings().
+
+    Returns:
+        List of SensorValidationResult, one per reading.
+        Results with is_anomaly=True contain detected errors in range_errors
+        and/or inactive_errors.
+    """
+    return [validate(r) for r in readings]
+
+class SensorDatabase:
+    """Manages DuckDB connection and sensor data access."""
+
+    def __init__(self, db_path: Path):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = duckdb.connect(db_path)
+
+    def insert_data(self, source_dir: Path) -> int:
+        """Load JSON files into sensors table. Returns total record count."""
+        json_glob = (source_dir / "*.json").as_posix()
+        self._conn.sql(f"""
+            CREATE TABLE IF NOT EXISTS sensors AS
+            SELECT *, filename
+            FROM read_json_auto('{json_glob}', filename=true)
+        """)
+        return self._conn.sql("SELECT COUNT(*) FROM sensors").fetchone()[0]
+
+    def load_readings(self) -> list[SensorReading]:
+        """Fetch all records and deserialize into SensorReading instances."""
+        columns = list(SensorReading.model_fields.keys())
+        rows = self._conn.sql(f"SELECT {', '.join(columns)} FROM sensors").fetchall()
+        return [
+            SensorReading.from_db_row(dict(zip(columns, row)))
+            for row in rows
+        ]
+
+    def close(self) -> None:
+        self._conn.close()
+
+    # Context manager support
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
