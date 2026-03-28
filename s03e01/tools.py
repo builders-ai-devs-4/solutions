@@ -88,96 +88,86 @@ def run_sensor_validation(db_path: str) -> tuple[str, list[SensorValidationResul
 @tool(response_format="content_and_artifact")
 def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResult]]:
     """
-    Analyze operator notes for all sensor readings using LLM.
+    Analyze operator notes for semantic anomalies using LLM.
 
-    Detects anomalies that cannot be caught by range validation, including:
-    - Notes contradicting the measured values or sensor type.
-    - Suspicious, uncertain, or copy-pasted operator observations.
-    - Semantic inconsistencies between note content and sensor context.
+    Detects:
+    - Operator claims OK but data suggests a problem.
+    - Operator reports errors but data is within normal range.
 
-    Processes readings in chunks to respect LLM context window limits.
-    Maps LLM results back to SensorValidationResult using filename + timestamp.
+    Deduplicates identical notes before sending to LLM — technicians often
+    reuse the same notes across many files, so only unique notes are analyzed.
+    Results are mapped back to all files sharing the same note.
+
+    Processes unique notes in chunks to respect LLM context window limits.
+    Minimizes LLM output — model returns only flagged note text and reason.
 
     Args:
         db_path: Path to the DuckDB database file as a string.
 
     Returns:
         Content: JSON string of flagged readings with anomaly reasons.
-        Artifact: list[SensorValidationResult] with operator_errors populated,
-                  one result per flagged reading.
+        Artifact: list[SensorValidationResult] with operator_errors populated.
     """
-
-    agent_logger.info(f"[analyze_operator_notes] chunk_size={CHUNK_SIZE}")
-    
     with SensorDatabase(Path(db_path)) as db:
         readings = db.load_readings()
 
     if not readings:
         return "No records found in the database.", []
 
-    # Indeks do szybkiego wyszukiwania SensorReading po (filename, timestamp)
-    readings_index: dict[tuple[str, int], SensorReading] = {
-        (Path(r.filename).name, r.timestamp): r
-        for r in readings
-    }
+    # Deduplikacja: nota → lista plików które jej używają
+    note_to_files: dict[str, list[SensorReading]] = {}
+    for r in readings:
+        note_to_files.setdefault(r.operator_notes, []).append(r)
 
-    NOTES_ANALYSIS_PROMPT = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_user.md").read_text(encoding="utf-8")
-    
-    
+    unique_notes = list(note_to_files.keys())
+    agent_logger.info(
+        f"[analyze_operator_notes] {len(readings)} readings → "
+        f"{len(unique_notes)} unique notes to analyze"
+    )
+
     llm   = ChatOpenRouter(model="openai/gpt-5-mini", temperature=0)
-    chain = NOTES_ANALYSIS_PROMPT | llm
+    notes_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "notes_analysis.md").read_text(encoding="utf-8")
+    chain = ChatPromptTemplate.from_messages([
+        ("system", notes_prompt),
+        ("human", "{notes}"),
+    ]) | llm
 
     anomalies: list[SensorValidationResult] = []
 
-    for i in range(0, len(readings), CHUNK_SIZE):
-        chunk = readings[i : i + CHUNK_SIZE]
+    # Chunki po unikalnych notatkach — nie po plikach
+    for i in range(0, len(unique_notes), CHUNK_SIZE):
+        chunk_notes = unique_notes[i : i + CHUNK_SIZE]
 
-        payload = json.dumps(
-            [
-                {
-                    "filename":       Path(r.filename).name,
-                    "timestamp":      r.timestamp,
-                    "sensor_type":    r.sensor_type,
-                    "operator_notes": r.operator_notes,
-                }
-                for r in chunk
-            ],
-            ensure_ascii=False,
-            indent=2,
-        )
-
-        response = chain.invoke({"readings": payload})
+        payload = json.dumps(chunk_notes, ensure_ascii=False, indent=2)
 
         try:
-            flagged = json.loads(response.content)
+            response = chain.invoke({"notes": payload})
+            flagged  = json.loads(response.content)
         except json.JSONDecodeError:
-            agent_logger.warning(f"[analyze_operator_notes] Invalid JSON from LLM for chunk {i}, skipping.")
+            agent_logger.warning(f"[analyze_operator_notes] Invalid JSON from LLM, chunk {i}, skipping.")
             flagged = []
-            continue
-        flagged  = json.loads(response.content)
 
-        for item in flagged:                        # ← wewnątrz tej samej pętli
-            key     = (item["filename"], item["timestamp"])
-            reading = readings_index.get(key)
-            if reading:
+        # Mapuj flagged notatki z powrotem na wszystkie pliki które ich używają
+        for item in flagged:
+            flagged_note = item["note"]
+            reason       = item["reason"]
+
+            for reading in note_to_files.get(flagged_note, []):
                 anomalies.append(SensorValidationResult(
                     reading         = reading,
-                    operator_errors = [item["reason"]],
+                    operator_errors = [reason],
                 ))
 
     cache.store_notes(anomalies)
-    
+
     if not anomalies:
         return "No suspicious operator notes detected.", []
-    
-    agent_logger.info(f"[analyze_operator_notes] anomalies={len(anomalies)})")
 
     content = json.dumps(
         [
             {
                 "filename":       r.filename,
                 "sensor_type":    r.reading.sensor_type,
-                "timestamp":      r.reading.timestamp,
                 "operator_errors":r.operator_errors,
             }
             for r in anomalies
