@@ -37,6 +37,8 @@ os.environ["DB_DIR_PATH"] = str(db_dir_path)
 db_dir_path.mkdir(parents=True, exist_ok=True)
 db_path = db_dir_path / "sensors.db"
 os.environ["DB_PATH"] = str(db_path)
+CHUNK_SIZE = 50
+os.environ["CHUNK_SIZE"] = str(CHUNK_SIZE)
 
 # from seeker_agent import SEEKER_CONFIG, seeker
 from libs.loggers import LoggerCallbackHandler, agent_logger

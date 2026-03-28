@@ -34,13 +34,13 @@ class SensorValidationResult(BaseModel):
     """
     Validation result for a single SensorReading.
 
-    Contains the original reading and lists of detected anomalies.
-    Use is_anomaly to quickly check if any errors were found.
-    Use all_errors for a flat list of all error messages.
+    range_errors and inactive_errors are populated by run_sensor_validation.
+    operator_errors is populated by analyze_operator_notes (LLM-based).
     """
     reading:         SensorReading
     range_errors:    list[str] = []  # active sensor value outside valid range
     inactive_errors: list[str] = []  # inactive sensor returned non-zero value
+    operator_errors: list[str] = []  # LLM-detected anomalies in operator notes
 
     @property
     def filename(self) -> str:
@@ -48,9 +48,8 @@ class SensorValidationResult(BaseModel):
 
     @property
     def all_errors(self) -> list[str]:
-        return self.range_errors + self.inactive_errors
+        return self.range_errors + self.inactive_errors + self.operator_errors
 
     @property
     def is_anomaly(self) -> bool:
         return bool(self.all_errors)
-
