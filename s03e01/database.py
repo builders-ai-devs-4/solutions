@@ -4,47 +4,6 @@ import duckdb
 from modules.models import SensorReading, SensorValidationResult, SensorValidationResult
 from validator import validate
 
-def create_db(db_file_path: Path | str)  -> str:
-    db_file_path = Path(db_file_path)
-    db_file_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(db_file_path)
-    conn.close() 
-    return str(db_file_path)
-
-def insert_data(db_path: Path | str, source_dir: Path | str) -> duckdb.DuckDBPyConnection:
-    
-    json_glob = Path(source_dir) / "*.json"
-    json_glob_str = json_glob.as_posix()
-    conn = duckdb.connect(db_path)
-    result = conn.sql(f"""
-        SELECT *, filename
-        FROM read_json_auto('{json_glob_str}', filename=true)
-    """).fetchdf()
-    
-    return result
-    
-def load_readings(conn: duckdb.DuckDBPyConnection) -> list[SensorReading]:
-    """
-    Fetch all records from the sensors table and deserialize into SensorReading instances.
-
-    Args:
-        conn: Open DuckDB connection with a populated 'sensors' table.
-
-    Returns:
-        List of SensorReading instances, one per database record.
-    """
-    columns = list(SensorReading.model_fields.keys())  # ← ze schematu Pydantic
-    columns_sql = ", ".join(columns)
-
-    rows = conn.sql(f"SELECT {columns_sql} FROM sensors").fetchall()
-
-    return [
-        SensorReading.from_db_row(dict(zip(columns, row)))
-        for row in rows
-    ]
-
-
-
 def run_validation(readings: list[SensorReading]) -> list[SensorValidationResult]:
     """
     Run validation on all loaded SensorReading instances.
