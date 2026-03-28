@@ -86,8 +86,8 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
     Analyze operator notes for semantic anomalies using LLM.
 
     Detects:
-    - Operator claims OK but data suggests a problem.
-    - Operator reports errors but data is within normal range.
+    - Operator claims OK but sensor data failed validation (missed real problem).
+    - Operator reports errors but data is within normal range (false alarm).
 
     Deduplicates identical notes before sending to LLM — technicians often
     reuse the same notes across many files, so only unique notes are analyzed.
@@ -109,18 +109,36 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
     if not readings:
         return "No records found in the database.", []
 
-    # Deduplikacja: nota → lista plików które jej używają
+    # Files that already failed sensor validation
+    validated_error_files: set[str] = {
+        r.filename
+        for r in cache.get_validation_results()
+        if r.sensor_errors  # only truly failed ones
+    }
+
+    # Deduplication: note → list of files that use it
     note_to_files: dict[str, list[SensorReading]] = {}
     for r in readings:
         note_to_files.setdefault(r.operator_notes, []).append(r)
 
-    unique_notes = list(note_to_files.keys())
+    # Build enriched unique-note list with data-error context
+    unique_notes_with_context = [
+        {
+            "note": note,
+            "has_data_error": any(
+                r.filename in validated_error_files
+                for r in file_readings
+            ),
+        }
+        for note, file_readings in note_to_files.items()
+    ]
+
     agent_logger.info(
         f"[analyze_operator_notes] {len(readings)} readings → "
-        f"{len(unique_notes)} unique notes to analyze"
+        f"{len(unique_notes_with_context)} unique notes to analyze"
     )
 
-    llm   = ChatOpenRouter(model="google/gemini-3-flash-preview", temperature=0)
+    llm = ChatOpenRouter(model="google/gemini-3-flash-preview", temperature=0)
     notes_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "notes_analysis.md").read_text(encoding="utf-8")
     chain = ChatPromptTemplate.from_messages([
         ("system", notes_prompt),
@@ -129,20 +147,21 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
 
     anomalies: list[SensorValidationResult] = []
 
-    # Chunki po unikalnych notatkach — nie po plikach
-    for i in range(0, len(unique_notes), CHUNK_SIZE):
-        chunk_notes = unique_notes[i : i + CHUNK_SIZE]
-
-        payload = json.dumps(chunk_notes, ensure_ascii=False, indent=2)
+    # Process chunks of unique notes — not files — to minimize LLM calls
+    for i in range(0, len(unique_notes_with_context), CHUNK_SIZE):
+        chunk = unique_notes_with_context[i : i + CHUNK_SIZE]
+        payload = json.dumps(chunk, ensure_ascii=False, indent=2)
 
         try:
             response = chain.invoke({"notes": payload})
             flagged  = json.loads(response.content)
         except json.JSONDecodeError:
-            agent_logger.warning(f"[analyze_operator_notes] Invalid JSON from LLM, chunk {i}, skipping.")
+            agent_logger.warning(
+                f"[analyze_operator_notes] Invalid JSON from LLM, chunk {i}, skipping."
+            )
             flagged = []
 
-        # Mapuj flagged notatki z powrotem na wszystkie pliki które ich używają
+        # Map flagged notes back to all files that use them
         for item in flagged:
             flagged_note = item["note"]
             reason       = item["reason"]
@@ -161,9 +180,9 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
     content = json.dumps(
         [
             {
-                "filename":       r.filename,
-                "sensor_type":    r.reading.sensor_type,
-                "operator_errors":r.operator_errors,
+                "filename":        r.filename,
+                "sensor_type":     r.reading.sensor_type,
+                "operator_errors": r.operator_errors,
             }
             for r in anomalies
         ],
@@ -187,52 +206,52 @@ def scan_flag(text: str) -> Optional[str]:
 
 
 class SendAnomaliesInput(BaseModel):
-    anomalies: list[SensorValidationResult] = Field(
-        description="List of SensorValidationResult instances from run_sensor_validation "
-                    "or analyze_operator_notes. File names are extracted automatically."
+    filenames: list[str] = Field(
+        description="List of anomalous filenames to report, e.g. ['0158.json', '0307.json']"
     )
 
 
 @tool(args_schema=SendAnomaliesInput, response_format="content_and_artifact")
-def send_anomalies_to_central(anomalies: list[SensorValidationResult]) -> tuple[str, dict]:
+def send_anomalies_to_central(filenames: list[str]) -> tuple[str, dict]:
     """
     Send anomalous file identifiers to the central verification endpoint.
 
-    Extracts file names from SensorValidationResult instances and submits
-    them to the /verify endpoint. Accepts results from both
-    run_sensor_validation and analyze_operator_notes.
-
-    File names are sent as-is (e.g. "0001.json") which is an accepted
-    format by the central verification endpoint.
+    Call this after both run_sensor_validation and analyze_operator_notes are complete.
+    Pass the combined list of anomalous filenames from both tools.
 
     Args:
-        anomalies: Validation results produced by run_sensor_validation
-                   or analyze_operator_notes.
+        filenames: List of anomalous filenames, e.g. ['0158.json', '0307.json'].
 
     Returns:
         Content: Central server response with verification result.
         Artifact: Full request payload sent to central.
     """
-    api_key      = os.environ["AI_DEVS_SECRET"]
+    apikey       = os.environ["AIDEVS_SECRET"]
     solution_url = os.environ["SOLUTION_URL"]
     task_name    = os.environ["TASK_NAME"]
 
-    anomaly_files = sorted({r.filename for r in anomalies})
+    # Deduplicate i posortuj
+    anomaly_files = sorted(set(filenames))
+
     agent_logger.info(f"[send_anomalies_to_central] anomaly_files={len(anomaly_files)})")
 
     payload = {
-        "apikey": api_key,
+        "apikey": apikey,
         "task":   task_name,
-        "answer": {
-            "recheck": anomaly_files
-        },
+        "answer": {"recheck": anomaly_files},
     }
+    agent_logger.info(f"[send_anomalies_to_central] recheck={anomaly_files}")
 
     response = requests.post(solution_url, json=payload)
-    response.raise_for_status()
+
+    if not response.ok:
+        return (
+            f"Server rejected the request with {response.status_code}: {response.text}. "
+            f"Sent {len(anomaly_files)} files. Review the list and retry.",
+            payload,
+        )
     agent_logger.info(f"[send_anomalies_to_central] response_status={response.status_code}")
 
     result  = response.json()
     content = json.dumps(result, ensure_ascii=False, indent=2)
-
     return content, payload

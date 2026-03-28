@@ -37,6 +37,9 @@ class ValidationCache:
         self._validation_results = []
         self._notes_results      = []
 
+    def get_validation_results(self) -> list[SensorValidationResult]:
+        """Return stored results from run_sensor_validation."""
+        return self._validation_results
 
 # Singleton cache — jeden na moduł, nie global zmienna
 cache = ValidationCache()
