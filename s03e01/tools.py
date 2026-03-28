@@ -6,19 +6,14 @@ from langchain_core.tools import tool
 from langchain_core.prompts import ChatPromptTemplate
 import os
 from langchain_openrouter import ChatOpenRouter
-from langchain.messages import SystemMessage, HumanMessage
 import requests
-from datetime import datetime, date
-from modules.models import SensorReading, SensorValidationResult, ValidationResult
-from dotenv import load_dotenv
+from modules.models import SensorReading, SensorValidationResult
 from pydantic import BaseModel, Field
 
 from database import SensorDatabase, run_validation, run_validation
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from libs.filetype_detect import detect_file_type
-from libs.generic_helpers import get_filename_from_url, read_file_text, save_file, save_json_file
 from libs.loggers import agent_logger
 import json
 
@@ -125,7 +120,7 @@ def analyze_operator_notes(db_path: str) -> tuple[str, list[SensorValidationResu
         f"{len(unique_notes)} unique notes to analyze"
     )
 
-    llm   = ChatOpenRouter(model="openai/gpt-5-mini", temperature=0)
+    llm   = ChatOpenRouter(model="google/gemini-3-flash-preview", temperature=0)
     notes_prompt = (Path(PARENT_FOLDER_PATH) / "prompts" / "notes_analysis.md").read_text(encoding="utf-8")
     chain = ChatPromptTemplate.from_messages([
         ("system", notes_prompt),

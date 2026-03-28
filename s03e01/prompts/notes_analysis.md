@@ -18,4 +18,4 @@ Each item must have exactly two fields:
 
 ## Example
 Input: ["All good.", "Readings stable.", "WARNING: sensor unstable but values look fine"]
-Output: [{"note": "WARNING: sensor unstable but values look fine", "reason": "Operator reports instability but implies data is acceptable — contradictory."}]
+Output: [{{"note": "WARNING: sensor unstable but values look fine", "reason": "Operator reports instability but implies data is acceptable — contradictory."}}]

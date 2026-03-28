@@ -32,7 +32,7 @@ SEEKER_CONFIG = {
 }
 
 seeker_model = ChatOpenRouter(
-    model="openai/gpt-5-mini",
+    model="google/gemini-3-flash-preview",
     temperature=0,
 )
 

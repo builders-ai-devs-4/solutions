@@ -4,7 +4,7 @@ from unittest import result
 from dotenv import load_dotenv
 from string import Template
 
-from database import SensorDatabase, create_db, insert_data, run_validation
+from database import SensorDatabase, run_validation
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.generic_helpers import extract_zip, get_filename_from_url, get_path_from_url, save_file
@@ -59,9 +59,6 @@ if __name__ == "__main__":
     
     if not db_path.exists():
         
-        db_path = create_db(db_path)
-        agent_logger.info(f"[task] Created database at {db_path}")
-    
         filename_from_url = get_filename_from_url(SENSORS_ZIP_URL)
         agent_logger.info(f"[task] Downloading sensors data from {SENSORS_ZIP_URL} to {sensors_dir_path}")
         sensors_dir_path.mkdir(parents=True, exist_ok=True)
@@ -71,16 +68,11 @@ if __name__ == "__main__":
         extract_zip(zip_file_path, extracted_dir_path)
         agent_logger.info(f"[task] Extracting {zip_file_path} to {extracted_dir_path}")
 
-        result = insert_data(db_path, extracted_dir_path)
-        print(result[["sensor_type", "temperature_K", "filename"]])
-        
         with SensorDatabase(db_path) as db:
             db.insert_data(extracted_dir_path)
-            
-            readings  = db.load_readings()
-            results   = run_validation(readings)
-            anomalies = [r for r in results if r.is_anomaly]
-            agent_logger.info(f"[task] Validation completed. Found {len(anomalies)} anomalies")    
+
+        agent_logger.info(f"[task] DB created at {db_path}")
+        
     
     result = seeker.invoke(
         {"messages": [{"role": "user", "content": seeker_user}]},
