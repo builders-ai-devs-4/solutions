@@ -8,6 +8,8 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 import requests
 
+from modules.models import ShellCommandInput, SubmitAnswerInput
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.loggers import agent_logger
 
@@ -16,19 +18,10 @@ SOLUTION_URL   = os.environ["SOLUTION_URL"]
 SHELL_URL      = os.environ["SHELL_URL"]
 TASK_NAME      = os.environ["TASK_NAME"]
 
+FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 ECCS_RE = re.compile(r"ECCS-[A-Za-z0-9]{40,}")
 MAX_TOOL_ITERATIONS = 20
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
-
-
-# ── Models ──────────────────────────────────────────────────────────────────
-
-class ShellCommandInput(BaseModel):
-    cmd: str = Field(description="Command to execute on the remote VM shell, e.g. 'ls /opt/firmware'")
-
-
-class SubmitAnswerInput(BaseModel):
-    confirmation: str = Field(description="The ECCS-xxx code obtained from running the firmware binary")
 
 
 # ── Tools ───────────────────────────────────────────────────────────────────
@@ -100,6 +93,18 @@ def submit_answer(confirmation: str) -> tuple[str, dict]:
     agent_logger.info(f"[submit_answer] response={content}")
     return content, payload
 
+@tool
+def scan_flag(text: str) -> Optional[str]:
+    """
+    Search for a success flag matching the pattern {FLG:...} in the given text.
+    Call this tool to analyze the server's response after submitting a solution to verify task completion.
+    """
+    match = FLAG_RE.search(text)
+    if match:
+        agent_logger.info(f"[FLAG FOUND] {match.group(0)}")
+        return match.group(0)
+    agent_logger.info(f"[scan_flag] no flag in text (len={len(text)})")
+    return None
 
 @tool
 def scan_eccs_flag(text: str) -> Optional[str]:
@@ -113,3 +118,4 @@ def scan_eccs_flag(text: str) -> Optional[str]:
         return match.group(0)
     agent_logger.info(f"[scan_eccs_flag] no ECCS code in text (len={len(text)})")
     return None
+
