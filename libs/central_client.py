@@ -3,7 +3,7 @@ from libs.loggers import agent_logger
 
 
 def _post_to_central(answer) -> tuple[str, dict]:
-    """Prywatny helper — wspólna logika POST do centrali."""
+    """Private helper — common logic for POSTing to the central server."""
     payload = {
         "apikey": os.environ["AI_DEVS_SECRET"],
         "task":   os.environ["TASK_NAME"],
