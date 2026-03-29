@@ -26,21 +26,35 @@ os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from seeker_agent import SEEKER_CONFIG, seeker
+from langfuse import Langfuse, get_client
 
+# Singleton initialization of Langfuse (only once, at startup)
+# This ensures that all agents and tools share the same Langfuse instance and configuration.
+
+Langfuse(
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+)
 
 seeker_user_template = (parent_folder_path / "prompts" / "seeker_user.md").read_text(encoding="utf-8")
 seeker_user = Template(seeker_user_template).substitute(
     SOLUTION_URL=SOLUTION_URL,
 )
 
-
-
-
 if __name__ == "__main__":
+    
     agent_logger.info(f"[task] Starting task: {TASK_NAME}")
-    result = seeker.invoke(
-        {"messages": [{"role": "user", "content": seeker_user}]},
-        config=SEEKER_CONFIG,
-    )
+    
+    try:
+        result = seeker.invoke(
+            {"messages": [{"role": "user", "content": seeker_user}]},
+            config=SEEKER_CONFIG,
+        )
+    except Exception as e:
+        agent_logger.error(f"[task] Unhandled error: {e}")
+        raise
+    finally:
+        get_client().flush() # Ensure all logs are sent to Langfuse before exiting.
+
     agent_logger.info(f"[task] {result['messages'][-1].content}")
 

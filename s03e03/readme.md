@@ -11,7 +11,6 @@ python -m pip install --upgrade pip
 
 ### Interpreter
 
-
 ### Użyj palety poleceń:
 
 1. Ctrl+Shift+P → wpisz "Python: Select Interpreter"
@@ -33,6 +32,7 @@ pip install tiktoken
 pip install -U langchain-openrouter
 pip install html-to-markdown
 pip install duckdb
+pip install langfuse
 ```
 
 or

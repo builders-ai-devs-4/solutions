@@ -9,6 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.loggers import agent_logger, LoggerCallbackHandler
 from tools import scan_flag, submit_answer, _RECURSION_LIMIT
 
+from langfuse.langchain import CallbackHandler
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
 TASK_NAME          = os.environ["TASK_NAME"]
 SOLUTION_URL       = os.environ["SOLUTION_URL"]
@@ -16,11 +17,15 @@ PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
+
+
+langfuse_handler = CallbackHandler()
+
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
 
 SEEKER_CONFIG = {
     "configurable": {"thread_id": "reactor-seeker"},
-    "callbacks": [LoggerCallbackHandler(agent_logger)],
+    "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
     "recursion_limit": _RECURSION_LIMIT,
 }
 
