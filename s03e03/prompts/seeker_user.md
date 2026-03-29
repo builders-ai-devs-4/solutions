@@ -1,16 +1,12 @@
-Your task is to run the firmware binary on the virtual machine and obtain a confirmation flag from central.
-
-## Binary location
-/opt/firmware/cooler/cooler.bin
+Navigate the reactor robot from col=1 to col=7 on row=5 without being crushed by reactor blocks.
 
 ## Steps
-1. Start with `help` to learn the available shell commands
-2. Explore the binary's directory — read all files, respect .gitignore
-3. Find the password required to run the binary (it is stored in multiple places on the system)
-4. Read settings.ini — fix any misconfigured values so the binary can run correctly
-5. Run the binary with the correct arguments → use scan_eccs_flag to extract the ECCS-xxx code
-6. Submit the code using submit_answer
-7. Call scan_flag on the response — a {FLG:...} flag confirms success
+1. Send command "start" to initialize the board
+2. Read the returned board state — note block positions and directions
+3. For each step: simulate block movement, decide right / wait / left
+4. After every command response — check reached_goal
+5. If reached_goal is true → call scan_flag on the response
+6. Flag in scan_flag response = task complete
 
 ## Central endpoint
 $SOLUTION_URL

@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 class SubmitAnswerInput(BaseModel):
-    command: str = Field(description="The command to control the robot, e.g. 'move forward', 'turn left', 'pick up object'.")
+    command: Literal["start", "right", "left", "wait", "reset"] = Field(
+        description="Command to send to the reactor robot: start (initialize), right (move forward), left (move back), wait (skip turn, blocks move), reset (restart)."
+    )

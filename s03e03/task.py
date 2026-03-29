@@ -33,13 +33,7 @@ seeker_user = Template(seeker_user_template).substitute(
     SOLUTION_URL=SOLUTION_URL,
 )
 
-# ans = dict()
-# ans["task"] = TASK_NAME
-# ans["apikey"] = AI_DEVS_SECRET
-# ans["answer"] = {'command': 'start'}
 
-# response = requests.post(SOLUTION_URL, json=ans)
-# agent_logger.info(f"[task] Solution submission response: {response.status_code} - {response.text}")
 
 
 if __name__ == "__main__":

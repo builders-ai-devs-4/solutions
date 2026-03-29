@@ -4,6 +4,7 @@ import sys
 import time
 from typing import Optional
 from pathlib import Path
+from duckdb import values
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 import requests
@@ -22,7 +23,6 @@ DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
-ECCS_RE = re.compile(r"ECCS-[A-Za-z0-9]{40,}")
 MAX_TOOL_ITERATIONS = 20
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
 
