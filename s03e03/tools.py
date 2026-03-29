@@ -9,15 +9,17 @@ from pydantic import BaseModel, Field
 import requests
 
 from libs.central_client import _post_to_central
-from modules.models import ShellCommandInput, SubmitAnswerInput
+from modules.models import SubmitAnswerInput
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.loggers import agent_logger
 
-AI_DEVS_SECRET = os.environ["AI_DEVS_SECRET"]
-SOLUTION_URL   = os.environ["SOLUTION_URL"]
-SHELL_URL      = os.environ["SHELL_URL"]
-TASK_NAME      = os.environ["TASK_NAME"]
+AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
+TASK_NAME          = os.environ["TASK_NAME"]
+SOLUTION_URL       = os.environ["SOLUTION_URL"]
+PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
+DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
+TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
 ECCS_RE = re.compile(r"ECCS-[A-Za-z0-9]{40,}")

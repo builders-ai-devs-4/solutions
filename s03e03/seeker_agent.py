@@ -7,7 +7,7 @@ from langchain_openrouter import ChatOpenRouter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.loggers import agent_logger, LoggerCallbackHandler
-from tools import scan_flag, shell_command, submit_answer, scan_eccs_flag, _RECURSION_LIMIT
+from tools import scan_flag, submit_answer, _RECURSION_LIMIT
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
 TASK_NAME          = os.environ["TASK_NAME"]
@@ -35,7 +35,6 @@ seeker = create_agent(
     tools=[
 
         submit_answer,
-
         scan_flag,
     ],
     system_prompt=seeker_system,
