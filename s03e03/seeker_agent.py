@@ -19,7 +19,7 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
 
 SEEKER_CONFIG = {
-    "configurable": {"thread_id": "firmware-seeker"},
+    "configurable": {"thread_id": "reactor-seeker"},
     "callbacks": [LoggerCallbackHandler(agent_logger)],
     "recursion_limit": _RECURSION_LIMIT,
 }

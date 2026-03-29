@@ -28,15 +28,14 @@ _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
 
     
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
-def submit_answer(**kwargs) -> tuple[str, dict]:
+def submit_answer(command: str) -> tuple[str, dict]:
     """
     Submit the final answer to the central verification endpoint.
     Call this only when you have the complete and confirmed answer ready.
     After calling this tool, ALWAYS call scan_flag on the response.
     """
-    values = list(kwargs.values())
-    answer = values[0] if len(values) == 1 else kwargs
-    return _post_to_central(answer)
+    
+    return _post_to_central({"command": command})
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
