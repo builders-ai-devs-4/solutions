@@ -10,7 +10,7 @@ from libs.loggers import LoggerCallbackHandler, agent_logger
 load_dotenv()
 AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
 SOLUTION_URL   = os.getenv('SOLUTION_URL')
-SHELL_URL      = os.getenv('SHELL_URL')
+SHELL_URL      = os.getenv('SOURCE_URL1')
 DATA_FOLDER    = os.getenv('DATA_FOLDER')
 TASK_NAME      = os.getenv('TASK_NAME')
 

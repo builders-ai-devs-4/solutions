@@ -9,10 +9,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.loggers import agent_logger, LoggerCallbackHandler
 from tools import scan_flag, shell_command, submit_answer, scan_eccs_flag, _RECURSION_LIMIT
 
-AI_DEVS_SECRET      = os.environ["AI_DEVS_SECRET"]
-TASK_NAME           = os.environ["TASK_NAME"]
-SOLUTION_URL        = os.environ["SOLUTION_URL"]
-PARENT_FOLDER_PATH  = os.environ["PARENT_FOLDER_PATH"]
+AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
+TASK_NAME          = os.environ["TASK_NAME"]
+SOLUTION_URL       = os.environ["SOLUTION_URL"]
+PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 
 seeker_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "seeker_system.md").read_text(encoding="utf-8")
 
@@ -23,8 +23,9 @@ SEEKER_CONFIG = {
 }
 
 seeker_model = ChatOpenRouter(
-    model="anthropic/claude-sonnet-4-6",  # wymagane przez zadanie
+    model="anthropic/claude-sonnet-4-6",
     temperature=0,
+    extra_body={"cache_control": {"type": "ephemeral"}},  # ← top-level, nie model_kwargs
 )
 
 seeker = create_agent(
@@ -33,7 +34,7 @@ seeker = create_agent(
         shell_command,
         submit_answer,
         scan_eccs_flag,
-        scan_flag
+        scan_flag,
     ],
     system_prompt=seeker_system,
     name="seeker",
