@@ -25,7 +25,6 @@ SEEKER_CONFIG = {
 seeker_model = ChatOpenRouter(
     model="anthropic/claude-sonnet-4-6",
     temperature=0,
-    extra_body={"cache_control": {"type": "ephemeral"}},  # ← top-level, nie model_kwargs
 )
 
 seeker = create_agent(

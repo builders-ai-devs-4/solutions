@@ -1,7 +1,7 @@
 Your task is to run the firmware binary on the virtual machine and obtain a confirmation flag from central.
 
 ## Binary location
-$BINARY_PATH
+/opt/firmware/cooler/cooler.bin
 
 ## Steps
 1. Start with `help` to learn the available shell commands
