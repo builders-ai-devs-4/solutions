@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 import requests
 from pydantic import BaseModel, Field
 
-
-
 parent_folder_path = Path(__file__).parent.parent
 load_dotenv(parent_folder_path / ".env") 
 sys.path.insert(0, str(parent_folder_path.parent)) 
