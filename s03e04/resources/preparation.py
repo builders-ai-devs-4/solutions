@@ -1,11 +1,10 @@
 import os
 import sys
-from string import Template
 from pathlib import Path
 from dotenv import load_dotenv
 
 from libs.generic_helpers import save_file
-from libs.tomarkdown import extract_files_from_md
+from libs.tomarkdown import extract_files_from_md, transform_html_to_markdown
 from libs.database import Database
 
 parent_folder_path = Path(__file__).parent.parent
@@ -14,27 +13,14 @@ sys.path.insert(0, str(parent_folder_path.parent))
 sys.path.insert(0, str(Path(__file__).parent)) 
 sys.path.insert(0, str(parent_folder_path)) 
 
-# import requests
-
-# parent_folder_path = Path(__file__).parent.parent
-# load_dotenv(parent_folder_path / ".env") 
-# sys.path.insert(0, str(parent_folder_path.parent)) 
-# sys.path.insert(0, str(Path(__file__).parent)) 
-# sys.path.insert(0, str(parent_folder_path)) 
-
 load_dotenv()
 
-# AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
-# SOLUTION_URL   = os.getenv('SOLUTION_URL')
-# DATA_FOLDER    = os.getenv('DATA_FOLDER')
-# TASK_NAME      = os.getenv('TASK_NAME')
-# AGENTIC_API_URL = os.getenv('AGENTIC_API_URL')
-# CSV_FILES_URL = os.getenv('SOURCE_URL1')
-# TASK_DATA_FOLDER_PATH = os.getenv("TASK_DATA_FOLDER_PATH")
-# PARENT_FOLDER_PATH = os.getenv("PARENT_FOLDER_PATH")    
-# DATA_FOLDER_PATH = os.getenv("DATA_FOLDER_PATH")
-# DB_DIR_PATH = os.getenv("DB_DIR_PATH")
-# CSVS_DIR_PATH = os.getenv("CSVS_DIR_PATH")
+TASK_NAME      = os.getenv('TASK_NAME')
+TASK_DATA_FOLDER_PATH = os.getenv("TASK_DATA_FOLDER_PATH")
+PARENT_FOLDER_PATH = os.getenv("PARENT_FOLDER_PATH")    
+DATA_FOLDER_PATH = os.getenv("DATA_FOLDER_PATH")
+DB_DIR_PATH = os.getenv("DB_DIR_PATH")
+CSVS_DIR_PATH = os.getenv("CSVS_DIR_PATH")
 
 from libs.loggers import agent_logger
 
@@ -65,3 +51,13 @@ def creating_db(csvs_dir_path: Path | str, db_path: Path | str):
             agent_logger.info(f"\n-- {table} --")
             for col in db.schema(table):
                 agent_logger.info(f"  {col['column_name']}")
+
+def run_preparation(csv_files_url: str, csvs_dir_path: Path | str, db_path: Path | str):
+    if not db_path.exists():
+        agent_logger.info(f"[task] Database not found. Creating new database at {db_path}")
+        md = transform_html_to_markdown(csvs_dir_path, csv_files_url)
+        agent_logger.info(f"[task] Extracted markdown saved to {md}")
+        save_extracted_csv_files(csv_files_url, csvs_dir_path, md)
+        agent_logger.info(f"[task] CSV files extracted and saved to {csvs_dir_path}")
+        creating_db(csvs_dir_path, db_path)
+        agent_logger.info(f"[task] Database created at {db_path}")
