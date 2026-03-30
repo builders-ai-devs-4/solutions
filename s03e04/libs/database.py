@@ -25,7 +25,7 @@ class Database:
         glob = (directory / "*.json").as_posix()
         self.conn.sql(f"""
             CREATE TABLE IF NOT EXISTS {table_name} AS
-            SELECT *, filename
+            SELECT *
             FROM read_json_auto('{glob}', filename=true)
         """)
         return self._count(table_name)
@@ -42,8 +42,8 @@ class Database:
             table_name = file.stem
             self.conn.sql(f"""
                 CREATE TABLE IF NOT EXISTS {table_name} AS
-                SELECT *, '{file.name}' AS filename
-                FROM read_json_auto('{file.as_posix()}')
+                SELECT *
+                FROM read_json_auto('{file.as_posix()}', filename=true)
             """)
             counts[table_name] = self._count(table_name)
         return counts
@@ -59,7 +59,7 @@ class Database:
         glob = (directory / "*.csv").as_posix()
         self.conn.sql(f"""
             CREATE TABLE IF NOT EXISTS {table_name} AS
-            SELECT *, filename
+            SELECT *
             FROM read_csv_auto('{glob}', header=true, filename=true)
         """)
         return self._count(table_name)
@@ -76,8 +76,8 @@ class Database:
             table_name = file.stem
             self.conn.sql(f"""
                 CREATE TABLE IF NOT EXISTS {table_name} AS
-                SELECT *, '{file.name}' AS filename
-                FROM read_csv_auto('{file.as_posix()}', header=true)
+                SELECT *
+                FROM read_csv_auto('{file.as_posix()}', header=true, filename=true)
             """)
             counts[table_name] = self._count(table_name)
         return counts
@@ -85,7 +85,15 @@ class Database:
     # ── Utils ─────────────────────────────────────────────────────────────────
 
     def query(self, sql: str) -> list[dict[str, Any]]:
-        """Execute arbitrary SQL and return list of dicts."""
+        """
+        Execute arbitrary SQL and return list of dicts.
+        Example:
+          results = db.query('''
+             SELECT u.name, o.amount
+             FROM users u JOIN orders o ON u.id = o.user_id
+         ''')
+            
+        """
         result = self.conn.sql(sql)
         columns = [desc[0] for desc in result.description]
         return [dict(zip(columns, row)) for row in result.fetchall()]
