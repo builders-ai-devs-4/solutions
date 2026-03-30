@@ -41,7 +41,10 @@ os.environ["DB_PATH"] = str(db_path)
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from resources.preparation import run_preparation
 from modules.seeker_agent import seeker, SEEKER_CONFIG
-MODULE_NAME = "api-main"
+from modules.models import ConnectionsRequest, ConnectionsResponse
+from libs.database import Database
+
+MODULE_NAME = "api"
 run_preparation(CSV_FILES_URL, csvs_dir_path, db_path)
 
 from langfuse import Langfuse, get_client
@@ -57,26 +60,30 @@ Langfuse(
 app = FastAPI()
 
 agent_logger.info(f"[{MODULE_NAME}] Api server started. Listening for requests...")
-agent_logger.info(f"[{MODULE_NAME}] task_data_folder={task_data_folder}")
-agent_logger.info(f"[{MODULE_NAME}] data_folder_path={data_folder_path}")
-agent_logger.info(f"[{MODULE_NAME}] parent_folder_path={parent_folder_path}")
-agent_logger.info(f"[{MODULE_NAME}] db_path={db_path}")
-agent_logger.info(f"[{MODULE_NAME}] csvs_dir_path={csvs_dir_path}")
-
 
 @app.get("/")
 async def health_check():
-    agent_logger.info(f"[{MODULE_NAME}] Health check received")
-    agent_logger.info(f"[{MODULE_NAME}] Response={'status': 'ok'}")
+    agent_logger.info(f"[{MODULE_NAME}-health_check] Health check received")
+    agent_logger.info(f"[{MODULE_NAME}-health_check] Response={'status': 'ok'}")
     return {"status": "ok"}
 
-@app.post("/", response_model=ResponseToOperator)
-async def root_post(req: OperatorsRequest):
-    api_logger.info(f"POST / | session={req.sessionID} | msg={req.msg!r}")
-    answer = await run_agent(req.sessionID, req.msg)
-    api_logger.debug(f"POST / | session={req.sessionID} | response={answer!r}")
-    return ResponseToOperator(msg=answer)
+@app.post("/connections", response_model=ConnectionsResponse)
+async def connections(request: ConnectionsRequest) -> ConnectionsResponse:
+    agent_logger.info(f"[{MODULE_NAME}-connections] Connections request received")
+    
+    try:
+        result = seeker.invoke(
+            {"messages": [{"role": "user", "content": request.params}]}, 
+            config=SEEKER_CONFIG,
+        )
+    except Exception as e:
+        agent_logger.error(f"[{MODULE_NAME}-connections] Unhandled error: {e}")
+        raise
+    finally:
+        get_client().flush()
 
-
-
+    output = result["messages"][-1].content
+    agent_logger.info(f"[{MODULE_NAME}-connections] {output}")
+    
+    return ConnectionsResponse(output=output)
 

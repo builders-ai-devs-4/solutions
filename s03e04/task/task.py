@@ -2,9 +2,11 @@ import os
 import sys
 from string import Template
 from pathlib import Path
+from time import time
 from dotenv import load_dotenv
 import requests
 from pydantic import BaseModel, Field
+
 
 
 parent_folder_path = Path(__file__).parent.parent
@@ -14,12 +16,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(parent_folder_path)) 
 
 load_dotenv()
-from libs.central_client import _post_to_central
-from libs.generic_helpers import save_file
-from libs.tomarkdown import transform_html_to_markdown
-from libs.database import Database
-from resources.preparation import creating_db, save_extracted_csv_files
-from task.models import SubmitAnswerInputCheck, SubmitAnswerInputTools, ToolEntry
 
 AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
 SOLUTION_URL   = os.getenv('SOLUTION_URL')
@@ -45,14 +41,29 @@ db_path = db_dir_path / "negotiations.db"
 os.environ["DB_PATH"] = str(db_path)
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
+from libs.central_client import _scan_flag_in_response
+from libs.central_client import _post_to_central
+from libs.tomarkdown import transform_html_to_markdown
+from resources.preparation import creating_db, save_extracted_csv_files
+from task.models import SubmitAnswerInputCheck, SubmitAnswerInputTools, ToolEntry
 
 MODULE_NAME = "task"
 
+POLL_INTERVAL = 10    # seconds between polls
+POLL_TIMEOUT  = 300   # max time to wait in seconds
+INITIAL_WAIT  = 15    # time before the first check
+
 tools = SubmitAnswerInputTools(tools=[
-    ToolEntry(URL=f"{AGENTIC_API_URL}/tools/submit_answer", 
-              description="Submit the final answer to the central verification endpoint. Call this only when you have the complete and confirmed answer ready. After calling this tool, ALWAYS call scan_flag on the response."),
-    ToolEntry(URL=f"{AGENTIC_API_URL}/tools/scan_flag", 
-              description="Search for a success flag matching the pattern {FLG:...} in the given text. Call this tool to analyze the server's response after submitting a solution to verify task completion."), 
+ToolEntry(
+    URL=f"{AGENTIC_API_URL}/connections",
+    description=(
+        "Find cities that have a specific item available for sale. "
+        "Query ONE item at a time using a natural language description in 'params', "
+        "e.g. 'copper wire 2mm' or 'small electric motor 12V'. "
+        "Returns a comma-separated list of city names. "
+        "Call this tool separately for each item, then find cities that appear in ALL results."
+    )
+)
 ])
 
 check = SubmitAnswerInputCheck(action="check")
@@ -69,7 +80,27 @@ if __name__ == "__main__":
         creating_db(csvs_dir_path, db_path)
         agent_logger.info(f"[{MODULE_NAME}] Database created at {db_path}")
 
+    # 1. Registration of tools in the central system
     json_tools, payload_tools = _post_to_central(tools.model_dump())
-    json_check, payload_check = _post_to_central(check.model_dump())
     agent_logger.info(f"[{MODULE_NAME}] Tools registration response: {json_tools}")
-    agent_logger.info(f"[{MODULE_NAME}] Check action registration response: {json_check}")
+
+    # 2. First wait before polling to give the system time to process the registration and for the agent to potentially invoke the tool. This is important to avoid
+    agent_logger.info(f"[{MODULE_NAME}] Waiting {INITIAL_WAIT}s before polling...")
+    time.sleep(INITIAL_WAIT)
+
+    # 3. Polling loop
+    elapsed = 0
+    while elapsed < POLL_TIMEOUT:
+        json_check, payload_check = _post_to_central(check.model_dump())
+        agent_logger.info(f"[{MODULE_NAME}] Check response: {json_check}")
+
+        flag = _scan_flag_in_response(str(json_check))
+        if flag:
+            agent_logger.info(f"[{MODULE_NAME}] Flag found: {flag}")
+            break
+
+        agent_logger.info(f"[{MODULE_NAME}] No flag yet, retrying in {POLL_INTERVAL}s...")
+        time.sleep(POLL_INTERVAL)
+        elapsed += POLL_INTERVAL
+    else:
+        agent_logger.warning(f"[{MODULE_NAME}] Timeout after {POLL_TIMEOUT}s — no flag received.")
