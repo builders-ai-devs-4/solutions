@@ -5,8 +5,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 import requests
 
-
-
 parent_folder_path = Path(__file__).parent.parent
 load_dotenv(parent_folder_path / ".env") 
 sys.path.insert(0, str(parent_folder_path.parent)) 
@@ -39,6 +37,7 @@ os.environ["CSVS_DIR_PATH"] = str(csvs_dir_path)
 db_dir_path.mkdir(parents=True, exist_ok=True)
 csvs_dir_path.mkdir(parents=True, exist_ok=True)
 db_path = db_dir_path / "negotiations.db"
+
 # os.environ["DB_PATH"] = str(db_path)
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
@@ -48,64 +47,39 @@ from libs.loggers import LoggerCallbackHandler, agent_logger
 # Singleton initialization of Langfuse (only once, at startup)
 # This ensures that all agents and tools share the same Langfuse instance and configuration.
 
-if __name__ == "__main__":
-    
-    agent_logger.info(f"[task] Starting task: {TASK_NAME}")
-    md = transform_html_to_markdown(csvs_dir_path, CSV_FILES_URL)
+def save_extracted_csv_files(csv_files_url: str, csvs_dir_path: Path | str, md: Path | str):
+    md = Path(md)
+    csvs_dir_path = Path(csvs_dir_path)
     files = extract_files_from_md(
-        md.read_text(encoding='utf-8'),
-        base_url=CSV_FILES_URL,
-        extensions=[".csv"]
-    )
+            md.read_text(encoding='utf-8'),
+            base_url=csv_files_url,
+            extensions=[".csv"]
+        )
     for file_info in files:
         file_url = file_info["url"]
         filename = file_info["name"]
         agent_logger.info(f"[task] Downloading {filename} from {file_url}")
         save_file(file_url, csvs_dir_path, override=True)
+
+if __name__ == "__main__":
     
-    with Database(db_path) as db:
-
-        # JSON — ta sama schema → jedna tabela
-        # db.load_json_dir_single_table("sensors", data_folder / "sensors")
-
-        # JSON — różne schematy → tabele: users, orders, products
-        # counts = db.load_json_dir_multi_table(data_folder / "entities")
-        # → {"users": 120, "orders": 340, "products": 55}
-
-        # CSV — ta sama schema → jedna tabela
-        # db.load_csv_dir_single_table("readings", data_folder / "readings")
-
-        # CSV — różne schematy → tabele: users, orders, products
-        counts = db.load_csv_dir_multi_table(csvs_dir_path)
-
-        # Sprawdź co jest w bazie
-        agent_logger.info(f"Database tables: {db.tables()}")
-
-        for table in db.tables():
-            agent_logger.info(f"\n-- {table} --")
-            for col in db.schema(table):
-                agent_logger.info(f"  {col['column_name']}: {col['column_type']}")
-            
-        # Zapytanie cross-table
-        # results = db.query("""
-        #     SELECT u.name, o.amount
-        #     FROM users u JOIN orders o ON u.id = o.user_id
-        # """)
-            
+    agent_logger.info(f"[task] Starting task: {TASK_NAME}")
+    if not db_path.exists():
+        md = transform_html_to_markdown(csvs_dir_path, CSV_FILES_URL)
+        save_extracted_csv_files(CSV_FILES_URL, csvs_dir_path, md)
         
+        with Database(db_path) as db:
 
-    
-    # if not db_path.exists():
-        
-    #     filename_from_url = get_filename_from_url(SENSORS_ZIP_URL)
-        # agent_logger.info(f"[task] Downloading sensors data from {SENSORS_ZIP_URL} to {sensors_dir_path}")
-        # sensors_dir_path.mkdir(parents=True, exist_ok=True)
-        # zip_file_path = save_file(SENSORS_ZIP_URL, sensors_dir_path, override=True)
-        # extracted_dir_path = sensors_dir_path / 'extracted'
-        # extracted_dir_path.mkdir(parents=True, exist_ok=True)
-        # extract_zip(zip_file_path, extracted_dir_path)
-        # agent_logger.info(f"[task] Extracting {zip_file_path} to {extracted_dir_path}")
+            counts = db.load_csv_dir_multi_table(csvs_dir_path)
 
-        # with SensorDatabase(db_path) as db:
-        #     db.insert_data(extracted_dir_path)
+            # Sprawdź co jest w bazie
+            agent_logger.info(f"Database tables: {db.tables()}")
 
+            for table in db.tables():
+                agent_logger.info(f"\n-- {table} --")
+                for col in db.schema(table):
+                    agent_logger.info(f"  {col['column_name']}: {col['column_type']}")
+
+
+            
+  
