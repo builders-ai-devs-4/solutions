@@ -98,6 +98,11 @@ class Database:
         columns = [desc[0] for desc in result.description]
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
+    def query_params(self, sql: str, params: list) -> list[dict[str, Any]]:
+        result = self.conn.execute(sql, params)
+        columns = [desc[0] for desc in result.description]
+        return [dict(zip(columns, row)) for row in result.fetchall()]
+
     def tables(self) -> list[str]:
         """Return list of all table names in the database."""
         return [row[0] for row in self.conn.sql("SHOW TABLES").fetchall()]

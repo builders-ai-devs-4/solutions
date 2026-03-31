@@ -72,6 +72,18 @@ APP_ENV=production bash start.sh
 # Production environment
 $env:APP_ENV="production"; .\start.ps1
 ```
+# By default, the ssh-agent service is disabled. Configure it to start automatically.
+# Run the following command as an administrator.
+Get-Service ssh-agent | Set-Service -StartupType Automatic
+
+# Start the service.
+Start-Service ssh-agent
+
+# The following command should return a status of Running.
+Get-Service ssh-agent
+
+# Load your key files into ssh-agent.
+ssh-add $env:USERPROFILE\.ssh\id_ecdsa
 
 ## Tests run
 
@@ -106,3 +118,22 @@ python scripts/test.py -- --cov=src --cov-report=html
 # Both at once
 python scripts/test.py -- --cov=src --cov-report=term-missing --cov-report=html
 ```
+
+# 1. Napraw końcówki linii (na wypadek problemów z formatem)
+sed -i 's/\r$//' start.sh
+
+# 2. Nadaj uprawnienia do wykonywania
+chmod +x start.sh
+
+# 3. Uruchom z flagą środowiskową
+APP_ENV=production ./start.sh
+
+sudo apt update
+sudo apt install python3-pip python3.13-venv python3.13-dev -y
+
+sudo update-alternatives --set python3 /usr/bin/python3.10
+
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 2
+
+sudo update-alternatives --config python3

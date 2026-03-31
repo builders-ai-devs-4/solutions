@@ -6,8 +6,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_openrouter import ChatOpenRouter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from libs.loggers import agent_logger, LoggerCallbackHandler
-from tools import get_cities_for_item, search_items, _RECURSION_LIMIT
+parent_folder_path = Path(__file__).parent.parent
+sys.path.insert(0, str(parent_folder_path.parent)) 
+sys.path.insert(0, str(Path(__file__).parent)) 
+sys.path.insert(0, str(parent_folder_path)) 
 
 from langfuse.langchain import CallbackHandler
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
@@ -16,6 +18,9 @@ SOLUTION_URL       = os.environ["SOLUTION_URL"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
+
+from libs.loggers import agent_logger, LoggerCallbackHandler
+from tools import get_cities_for_item, search_items, _RECURSION_LIMIT
 
 langfuse_handler = CallbackHandler()
 

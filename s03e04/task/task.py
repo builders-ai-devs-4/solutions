@@ -2,7 +2,7 @@ import os
 import sys
 from string import Template
 from pathlib import Path
-from time import time
+import time
 from dotenv import load_dotenv
 import requests
 from pydantic import BaseModel, Field
@@ -43,7 +43,7 @@ from libs.central_client import _scan_flag_in_response
 from libs.central_client import _post_to_central
 from libs.tomarkdown import transform_html_to_markdown
 from resources.preparation import creating_db, save_extracted_csv_files
-from task.models import SubmitAnswerInputCheck, SubmitAnswerInputTools, ToolEntry
+from models import SubmitAnswerInputCheck, SubmitAnswerInputTools, ToolEntry
 
 MODULE_NAME = "task"
 
@@ -55,11 +55,11 @@ tools = SubmitAnswerInputTools(tools=[
 ToolEntry(
     URL=f"{AGENTIC_API_URL}/connections",
     description=(
-        "Find cities that have a specific item available for sale. "
-        "Query ONE item at a time using a natural language description in 'params', "
-        "e.g. 'copper wire 2mm' or 'small electric motor 12V'. "
-        "Returns a comma-separated list of city names. "
-        "Call this tool separately for each item, then find cities that appear in ALL results."
+        "Find cities selling a specific item. "
+        "Pass natural language item description in 'params', "
+        "e.g. 'copper wire 2mm'. "
+        "Returns comma-separated city names. "
+        "Call once per item, then intersect results to find cities with ALL items."
     )
 )
 ])
