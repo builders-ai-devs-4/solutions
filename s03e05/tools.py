@@ -17,6 +17,7 @@ PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 TOOLSEARCH_URL     = os.getenv('TOOLSEARCH_URL')
+HUB_URL        = os.getenv('HUB_URL')
 
 MAX_TOOL_ITERATIONS = 20
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
@@ -32,7 +33,7 @@ def submit_answer(answer: list[str]) -> tuple[str, dict]:
     Call this only when you have the complete and confirmed answer ready.
     After calling this tool, ALWAYS call scan_flag on the response.
     """
-    return _post_to_central({"answer": answer})
+    return _post_to_central(answer)
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
@@ -73,6 +74,10 @@ def query_tool(url: str, query: str) -> str:
     Call a discovered tool by its URL with a natural language query.
     Use this after search_tools returns a tool URL to actually fetch data from it.
     """
+    
+    if not url.startswith("http"):
+        url = f"{HUB_URL}{url}"
+        
     agent_logger.info(f"[query_tool] query={query}")
     
     response = requests.post(

@@ -28,10 +28,11 @@ Read the structured report provided by the Supervisor carefully:
 - If no single vehicle can complete the route — plan a switch to walking mid-route
 
 ### Step 3: Submit
-Call `submit_answer` with:
-- vehicle name as first element
+Call `submit_answer` with a flat list:
+- first element: ONE vehicle name (string) for the entire journey
 - followed by moves: "up", "down", "left", "right"
 
-Example: ["bike", "right", "right", "up", "down"]
+Example: ["horse", "right", "right", "up", "up"]
 
-After submitting, ALWAYS call `scan_flag` on the response.
+You CANNOT switch vehicles mid-route.
+Choose ONE vehicle that fits within both food and fuel budgets for the entire path.

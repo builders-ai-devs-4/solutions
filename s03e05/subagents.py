@@ -21,7 +21,7 @@ TOOLSEARCH_URL     = os.getenv('TOOLSEARCH_URL')
 explorer_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_system.md").read_text(encoding="utf-8")
 explorer_description_template = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_description.md").read_text(encoding="utf-8")
 explorer_description = Template(explorer_description_template).substitute(
-    MAX_SEARCH_ITERATIONS=3
+    MAX_SEARCH_ITERATIONS=10
 )
 
 planner_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_system.md").read_text(encoding="utf-8")

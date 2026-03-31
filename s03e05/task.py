@@ -16,6 +16,8 @@ SOLUTION_URL   = os.getenv('SOLUTION_URL')
 TOOLSEARCH_URL = os.getenv('SOURCE_URL1')
 DATA_FOLDER    = os.getenv('DATA_FOLDER')
 TASK_NAME      = os.getenv('TASK_NAME')
+TASK_NAME      = os.getenv('TASK_NAME')
+HUB_URL        = os.getenv('HUB_URL')
 
 current_folder = Path(__file__)
 parent_folder_path  = current_folder.parent
@@ -25,6 +27,7 @@ task_data_folder.mkdir(parents=True, exist_ok=True)
 os.environ["PARENT_FOLDER_PATH"] = str(parent_folder_path)
 os.environ["DATA_FOLDER_PATH"] = str(date_folder_path)
 os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
+os.environ["TOOLSEARCH_URL"] = str(TOOLSEARCH_URL)
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from supervisor_agent import SUPERVISOR_CONFIG, supervisor
@@ -38,7 +41,7 @@ Langfuse(
     secret_key=os.environ["LANGFUSE_SECRET_KEY"],
 )
 
-supervisor_user_template = (parent_folder_path / "prompts" / "seeker_user.md").read_text(encoding="utf-8")
+supervisor_user_template = (parent_folder_path / "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
 supervisor_user = Template(supervisor_user_template).substitute(
     SOLUTION_URL=SOLUTION_URL,
 )
