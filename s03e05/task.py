@@ -5,13 +5,15 @@ from string import Template
 from pathlib import Path
 
 import requests
+from langfuse.langchain import CallbackHandler
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+MODULE_NAME = "task"
 
 load_dotenv()
 AI_DEVS_SECRET = os.getenv('AI_DEVS_SECRET')
 SOLUTION_URL   = os.getenv('SOLUTION_URL')
-SHELL_URL      = os.getenv('SOURCE_URL1')
+TOOLSEARCH_URL = os.getenv('SOURCE_URL1')
 DATA_FOLDER    = os.getenv('DATA_FOLDER')
 TASK_NAME      = os.getenv('TASK_NAME')
 
@@ -25,7 +27,7 @@ os.environ["DATA_FOLDER_PATH"] = str(date_folder_path)
 os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
-from seeker_agent import SEEKER_CONFIG, seeker
+from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 from langfuse import Langfuse, get_client
 
 # Singleton initialization of Langfuse (only once, at startup)
@@ -36,25 +38,25 @@ Langfuse(
     secret_key=os.environ["LANGFUSE_SECRET_KEY"],
 )
 
-seeker_user_template = (parent_folder_path / "prompts" / "seeker_user.md").read_text(encoding="utf-8")
-seeker_user = Template(seeker_user_template).substitute(
+supervisor_user_template = (parent_folder_path / "prompts" / "seeker_user.md").read_text(encoding="utf-8")
+supervisor_user = Template(supervisor_user_template).substitute(
     SOLUTION_URL=SOLUTION_URL,
 )
 
 if __name__ == "__main__":
     
-    agent_logger.info(f"[task] Starting task: {TASK_NAME}")
+    agent_logger.info(f"[{MODULE_NAME}] Starting task: {TASK_NAME}")
     
     try:
-        result = seeker.invoke(
-            {"messages": [{"role": "user", "content": seeker_user}]},
-            config=SEEKER_CONFIG,
+        result = supervisor.invoke(
+            {"messages": [{"role": "user", "content": supervisor_user}]},
+            config=SUPERVISOR_CONFIG,
         )
     except Exception as e:
-        agent_logger.error(f"[task] Unhandled error: {e}")
+        agent_logger.error(f"[{MODULE_NAME}] Unhandled error: {e}")
         raise
     finally:
         get_client().flush() # Ensure all logs are sent to Langfuse before exiting.
 
-    agent_logger.info(f"[task] {result['messages'][-1].content}")
+    agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
 
