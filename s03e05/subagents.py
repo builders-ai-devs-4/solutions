@@ -52,6 +52,7 @@ _explorer = create_agent(
     model=explorer_model,
     tools=[
             search_tools,
+            query_tool
         ],
     system_prompt=explorer_system,
     name="explorer",
@@ -86,7 +87,6 @@ _planner = create_agent(
     tools = [
             scan_flag,
             submit_answer,
-            query_tool
     ],
 
     system_prompt=planner_system,
