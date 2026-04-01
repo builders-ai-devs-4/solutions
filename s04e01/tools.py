@@ -6,6 +6,7 @@ from pathlib import Path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 import requests
+from bs4 import BeautifulSoup
 
 
 
@@ -17,7 +18,7 @@ SOLUTION_URL       = os.environ["SOLUTION_URL"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
-TOOLSEARCH_URL     = os.getenv('TOOLSEARCH_URL')
+OKO_URL     = os.getenv('OKO_URL')
 HUB_URL        = os.getenv('HUB_URL')
 
 MAX_TOOL_ITERATIONS = 20
@@ -59,11 +60,14 @@ def fetch_oko_page(path: str) -> str:
     Start at '/' to discover available sections, then navigate deeper.
     """
     session = get_oko_session()
-    resp = session.get(f"https://oko.ag3nts.org{path}")
+    agent_logger.info(f"[fetch_oko_page] Fetching page path: {path}")
+    
+    clean_path = "/" + path.lstrip("/")
+    resp = session.get(f"{OKO_URL}{clean_path}")
     soup = BeautifulSoup(resp.text, "html.parser")
 
     # Zachowaj linki jako tekst — LLM musi je widzieć żeby nawigować
     for a in soup.find_all("a", href=True):
         a.replace_with(f"[LINK: {a.get_text(strip=True)} → {a['href']}]")
-
+    agent_logger.info(f"[fetch_oko_page] Fetched page path: {path}")
     return soup.get_text(separator="\n", strip=True)

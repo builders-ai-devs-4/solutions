@@ -16,21 +16,20 @@ SOLUTION_URL       = os.environ["SOLUTION_URL"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
-TOOLSEARCH_URL     = os.getenv('TOOLSEARCH_URL')
+OKO_URL     = os.getenv('OKO_URL')
 
 explorer_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_system.md").read_text(encoding="utf-8")
 explorer_description_template = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_description.md").read_text(encoding="utf-8")
 explorer_description = Template(explorer_description_template).substitute(
-    MAX_SEARCH_ITERATIONS=10
+    MAX_SEARCH_ITERATIONS=3
 )
 
 planner_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_system.md").read_text(encoding="utf-8")
 planner_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_description.md").read_text(encoding="utf-8")
 
 from tools import (
-    query_tool,
+    fetch_oko_page,
     scan_flag,
-    search_tools,
     submit_answer,
 )   
 
@@ -51,15 +50,15 @@ explorer_model = ChatOpenRouter(
 _explorer = create_agent(
     model=explorer_model,
     tools=[
-            search_tools,
-            query_tool
+            fetch_oko_page,
+            submit_answer,
         ],
     system_prompt=explorer_system,
     name="explorer",
     checkpointer=InMemorySaver(),
 )
 
-@tool("explorer", description=explorer_description_template)
+@tool("explorer", description=explorer_description)
 def call_explorer(task: str) -> str:
     
     agent_logger.info(f"[call_explorer] task={task}")
