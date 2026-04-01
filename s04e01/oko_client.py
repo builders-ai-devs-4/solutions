@@ -3,40 +3,47 @@ import os
 from bs4 import BeautifulSoup
 import requests
 
+AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
+TASK_NAME          = os.environ["TASK_NAME"]
+SOLUTION_URL       = os.environ["SOLUTION_URL"]
+PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
+DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
+TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
+OKO_URL     = os.getenv('OKO_URL')
+HUB_URL        = os.getenv('HUB_URL')
 LOGIN= os.getenv('LOGIN')
 PASSWORD= os.getenv('PASSWORD')
-AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
-OKO_URL     = os.getenv('OKO_URL')
+
+from libs.loggers import agent_logger
 
 _session: requests.Session | None = None
 
 def get_oko_session() -> requests.Session:
     global _session
     if _session is not None:
+        agent_logger.info("[get_oko_session] reusing existing session")
         return _session
 
-    s = requests.Session()
+    agent_logger.info("[get_oko_session] creating new session")
+    _session = requests.Session()
 
-    login_page = s.get(f"{OKO_URL}/")
-    soup = BeautifulSoup(login_page.text, "html.parser")
-    form = soup.find("form", class_="login-form")
+    login_url = f"{OKO_URL}/"
+    agent_logger.info(f"[get_oko_session] login_url={login_url} login={LOGIN}")
 
-    form_data = {}
-    for inp in form.find_all("input"):
-        name = inp.get("name")
-        if not name:
-            continue
-        form_data[name] = inp.get("value", "")
+    resp = _session.post(login_url, data={
+        "action": "login",
+        "login": LOGIN,
+        "password": PASSWORD,
+        "access_key": AI_DEVS_SECRET,
+    })
 
-    form_data["login"] = LOGIN
-    form_data["password"] = PASSWORD
-    form_data["access_key"] = AI_DEVS_SECRET
-
-    resp = s.post(f"{OKO_URL}/", data=form_data)
+    agent_logger.info(
+        f"[get_oko_session] login response status={resp.status_code} "
+        f"contains_login_form={'login-form' in resp.text}"
+    )
 
     if "login-form" in resp.text:
         raise RuntimeError("OKO login failed — check credentials/access_key")
 
-    _session = s
+    agent_logger.info("[get_oko_session] login successful")
     return _session
-

@@ -50,19 +50,19 @@ supervisor_user = Template(supervisor_user_template).substitute(
 
 if __name__ == "__main__":
     
-    agent_logger.info(f"[{MODULE_NAME}] Starting task: {TASK_NAME}")
+    # agent_logger.info(f"[{MODULE_NAME}] Starting task: {TASK_NAME}")
     
-    try:
-        result = supervisor.invoke(
-            {"messages": [{"role": "user", "content": supervisor_user}]},
-            config=SUPERVISOR_CONFIG,
-        )
-    except Exception as e:
-        agent_logger.error(f"[{MODULE_NAME}] Unhandled error: {e}")
-        raise
-    finally:
-        get_client().flush() # Ensure all logs are sent to Langfuse before exiting.
-    agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
+    # try:
+    #     result = supervisor.invoke(
+    #         {"messages": [{"role": "user", "content": supervisor_user}]},
+    #         config=SUPERVISOR_CONFIG,
+    #     )
+    # except Exception as e:
+    #     agent_logger.error(f"[{MODULE_NAME}] Unhandled error: {e}")
+    #     raise
+    # finally:
+    #     get_client().flush() # Ensure all logs are sent to Langfuse before exiting.
+    # agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
 
     # ans = dict()
     # ans["task"] = TASK_NAME
@@ -72,3 +72,23 @@ if __name__ == "__main__":
 
     # agent_logger.info(f"[{MODULE_NAME}] {response.text}")
 
+    import os, requests
+
+    OKO_URL = "https://oko.ag3nts.org"
+    LOGIN = os.environ.get("LOGIN")
+    PASSWORD = os.environ.get("PASSWORD")
+    AI_DEVS_SECRET = os.environ.get("AI_DEVS_SECRET")
+
+    print("LOGIN:", LOGIN)
+    print("PASSWORD:", PASSWORD)
+    print("SECRET:", AI_DEVS_SECRET)
+
+    s = requests.Session()
+    resp = s.post(f"{OKO_URL}/", data={
+        "action": "login",
+        "login": LOGIN,
+        "password": PASSWORD,
+        "access_key": AI_DEVS_SECRET,
+    })
+    print("status:", resp.status_code)
+    print("login-form in body:", "login-form" in resp.text)
