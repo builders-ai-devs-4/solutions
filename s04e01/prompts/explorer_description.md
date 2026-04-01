@@ -1,18 +1,14 @@
 Use this agent to discover and collect data from the OKO system before any edits are made.
 
-The explorer can:
-- Browse the OKO web panel to find records and extract their IDs and current field values
-- Query the API documentation to learn available actions and required fields
+The explorer will:
+- Call the API help endpoint and return the complete verbatim response
+- Browse the OKO web panel and list ALL visible records on relevant pages
+- Extract record IDs, titles, content, and all visible field values
 
-Call the explorer when you need:
-- IDs of specific records (reports, tasks, incidents)
-- Current field values of a record before updating it
-- API field names, allowed values, and update rules
-- Structure of existing records to use as a pattern for creating new ones
+The explorer does NOT assess what operations are possible — it only reports facts.
+The supervisor interprets the help response and decides what to do.
 
-Pass a clear task description specifying what to find and which city or section to look in.
+Pass a clear task description specifying which pages to browse.
+The explorer will return a structured report with raw_api_help and records_found.
 
-The explorer will return a structured report.
-If the report contains CRITICAL MISSING — do NOT call the planner.
-Call the explorer again with a more specific task targeting exactly what is missing.
 Maximum explorer retries: $MAX_EXPLORER_RETRIES

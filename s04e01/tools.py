@@ -26,17 +26,9 @@ _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import FetchOkoPageInput, OkoUpdateInput, SubmitAnswerInput
+from modules.models import FetchOkoPageInput, SubmitAnswerInput
 from oko_client import get_oko_session, reset_oko_session
 
-class SubmitAnswerInput(BaseModel):
-    action: str = Field(
-        description=(
-            "Simple action name for the central API. "
-            "Allowed here: 'help' or 'done'. "
-            "For 'update' and other complex actions, use dedicated tools."
-        )
-    )
 
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
@@ -137,45 +129,22 @@ def logout_oko_session() -> str:
 
     return f"Logout called on /logout, status={resp.status_code}, local session cache reset."
 
-@tool(args_schema=OkoUpdateInput, response_format="content_and_artifact")
-def oko_update(
-    page: str,
-    id: str,
-    title: str | None = None,
-    content: str | None = None,
-    done: str | None = None,
-) -> tuple[str, dict]:
+@tool(response_format="content_and_artifact")
+def oko_update(page: str, id: str, fields: dict) -> tuple[str, dict]:
     """
     Execute an 'update' action on the central OKO API.
 
-    Builds a proper answer object:
-    {
-      "action": "update",
-      "page":   "...",
-      "id":     "...",
-      "title":  "...",   # optional
-      "content":"...",   # optional
-      "done":   "YES|NO" # only for page 'zadania'
-    }
+    Args:
+        page: Target page name as discovered from the API help or web panel (e.g. 'incydenty', 'zadania').
+        id: Exact record ID string as found on the web panel.
+        fields: Dictionary of fields to update, using ONLY field names returned by the API help action.
+                Do NOT guess field names. Example: {"title": "...", "content": "...", "done": "YES"}
     """
-    answer: dict[str, object] = {
+    answer = {
         "action": "update",
         "page": page,
         "id": id,
+        **fields,
     }
-
-    if title is not None:
-        answer["title"] = title
-    if content is not None:
-        answer["content"] = content
-    if done is not None:
-        answer["done"] = done
-
-    # Walidacja zgodna z helpem
-    if not any(answer.get(k) is not None for k in ("title", "content", "done")):
-        raise ValueError("update requires at least one of: title, content, done")
-
-    if done is not None and page != "zadania":
-        raise ValueError('Field "done" is allowed only for page "zadania".')
-
+    agent_logger.info(f"[oko_update] page={page} id={id} fields={list(fields.keys())}")
     return _post_to_central(answer)

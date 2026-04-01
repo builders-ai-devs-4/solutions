@@ -59,7 +59,7 @@ _explorer = create_agent(
         ],
     system_prompt=explorer_system,
     name="explorer",
-    checkpointer=InMemorySaver(),
+    # checkpointer=InMemorySaver(),
 )
 
 @tool("explorer", description=explorer_description)
@@ -95,7 +95,7 @@ _planner = create_agent(
 
     system_prompt=planner_system,
     name="planner",
-    checkpointer=InMemorySaver(),
+    # checkpointer=InMemorySaver(),
 )
 
 
