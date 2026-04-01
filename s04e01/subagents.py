@@ -30,6 +30,8 @@ planner_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_descripti
 
 from tools import (
     fetch_oko_page,
+    logout_oko_session,
+    oko_update,
     scan_flag,
     submit_answer,
 )   
@@ -53,6 +55,7 @@ _explorer = create_agent(
     tools=[
             fetch_oko_page,
             submit_answer,
+            logout_oko_session
         ],
     system_prompt=explorer_system,
     name="explorer",
@@ -87,6 +90,7 @@ _planner = create_agent(
     tools = [
             scan_flag,
             submit_answer,
+            oko_update
     ],
 
     system_prompt=planner_system,

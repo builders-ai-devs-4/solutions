@@ -26,20 +26,36 @@ _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import FetchOkoPageInput, SubmitAnswerInput
+from modules.models import FetchOkoPageInput, OkoUpdateInput, SubmitAnswerInput
 from oko_client import get_oko_session, reset_oko_session
+
+class SubmitAnswerInput(BaseModel):
+    action: str = Field(
+        description=(
+            "Simple action name for the central API. "
+            "Allowed here: 'help' or 'done'. "
+            "For 'update' and other complex actions, use dedicated tools."
+        )
+    )
+
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
 def submit_answer(action: str) -> tuple[str, dict]:
     """
     Submit a simple action to the central API.
 
-    Use for actions that require no extra fields, such as:
-    - "help" to get API documentation
-    - "done" to finalize the task
+    Use only for actions that require no extra fields:
+    - 'help' to get API documentation
+    - 'done' to finalize the task
 
-    After calling "done", always check the response for a flag.
+    Do NOT pass complex payloads (like update with page/id/title/content) here.
     """
+    if action not in ("help", "done"):
+        raise ValueError(
+            "submit_answer(action) supports only simple actions: 'help' or 'done'. "
+            "For 'update', use the dedicated update tool that builds a full answer object."
+        )
+
     return _post_to_central({"action": action})
 
 @tool
@@ -120,3 +136,46 @@ def logout_oko_session() -> str:
     agent_logger.info("[logout_oko_session] local session cache reset")
 
     return f"Logout called on /logout, status={resp.status_code}, local session cache reset."
+
+@tool(args_schema=OkoUpdateInput, response_format="content_and_artifact")
+def oko_update(
+    page: str,
+    id: str,
+    title: str | None = None,
+    content: str | None = None,
+    done: str | None = None,
+) -> tuple[str, dict]:
+    """
+    Execute an 'update' action on the central OKO API.
+
+    Builds a proper answer object:
+    {
+      "action": "update",
+      "page":   "...",
+      "id":     "...",
+      "title":  "...",   # optional
+      "content":"...",   # optional
+      "done":   "YES|NO" # only for page 'zadania'
+    }
+    """
+    answer: dict[str, object] = {
+        "action": "update",
+        "page": page,
+        "id": id,
+    }
+
+    if title is not None:
+        answer["title"] = title
+    if content is not None:
+        answer["content"] = content
+    if done is not None:
+        answer["done"] = done
+
+    # Walidacja zgodna z helpem
+    if not any(answer.get(k) is not None for k in ("title", "content", "done")):
+        raise ValueError("update requires at least one of: title, content, done")
+
+    if done is not None and page != "zadania":
+        raise ValueError('Field "done" is allowed only for page "zadania".')
+
+    return _post_to_central(answer)
