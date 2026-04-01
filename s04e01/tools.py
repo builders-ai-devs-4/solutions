@@ -32,14 +32,17 @@ from modules.models import FetchOkoPageInput, SubmitAnswerInput
 from oko_client import get_oko_session
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
-def submit_answer(action: dict) -> tuple[str, dict]:
+def submit_answer(action: str) -> tuple[str, dict]:
     """
-    Submit an action to the central verification endpoint.
-    First call with {'action': 'help'} to discover available actions and fields.
-    Call with {'action': 'done'} only after all edits are confirmed.
-    After calling 'done', ALWAYS call scan_flag on the response.
+    Submit a simple action to the central API.
+
+    Use for actions that require no extra fields, such as:
+    - "help" to get API documentation
+    - "done" to finalize the task
+
+    After calling "done", always check the response for a flag.
     """
-    return _post_to_central(action)
+    return _post_to_central({"action": action})
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
@@ -61,15 +64,20 @@ def fetch_oko_page(path: str) -> str:
     Returns page text content with links preserved.
     Start at '/' to discover available sections, then navigate deeper.
     """
-    session = get_oko_session()
-    agent_logger.info(f"[fetch_oko_page] Fetching page path: {path}")
-    
+    agent_logger.info(f"[fetch_oko_page] requested path={path}")
+
     clean_path = "/" + path.lstrip("/")
-    resp = session.get(f"{OKO_URL}{clean_path}")
+    session = get_oko_session()
+
+    url = f"{OKO_URL}{clean_path}"
+    agent_logger.info(f"[fetch_oko_page] fetching url={url}")
+
+    resp = session.get(url)
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # Zachowaj linki jako tekst — LLM musi je widzieć żeby nawigować
     for a in soup.find_all("a", href=True):
         a.replace_with(f"[LINK: {a.get_text(strip=True)} → {a['href']}]")
-    agent_logger.info(f"[fetch_oko_page] Fetched page path: {path}")
-    return soup.get_text(separator="\n", strip=True)
+
+    text = soup.get_text(separator="\n", strip=True)
+    agent_logger.info(f"[fetch_oko_page] fetched url={url} chars={len(text)}")
+    return text

@@ -3,12 +3,8 @@ from pydantic import BaseModel, Field
 
 
 class SubmitAnswerInput(BaseModel):
-    action: dict = Field(
-        description=(
-            "Full answer payload as a dict. "
-            "Known actions: {'action': 'help'} to get API docs, {'action': 'done'} to finalize. "
-            "For other actions: discover required fields first by calling with {'action': 'help'}."
-        )
+    action: str = Field(
+        description="Action name (e.g. 'help', 'done'). For more complex actions, supervisor will provide full answer payload another way."
     )
     
 class FetchOkoPageInput(BaseModel):
