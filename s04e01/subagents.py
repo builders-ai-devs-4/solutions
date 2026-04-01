@@ -18,10 +18,11 @@ DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 OKO_URL     = os.getenv('OKO_URL')
 
+
 explorer_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_system.md").read_text(encoding="utf-8")
 explorer_description_template = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_description.md").read_text(encoding="utf-8")
 explorer_description = Template(explorer_description_template).substitute(
-    MAX_SEARCH_ITERATIONS=3
+    MAX_EXPLORER_RETRIES=3
 )
 
 planner_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_system.md").read_text(encoding="utf-8")

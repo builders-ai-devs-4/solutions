@@ -18,6 +18,8 @@ DATA_FOLDER    = os.getenv('DATA_FOLDER')
 TASK_NAME      = os.getenv('TASK_NAME')
 TASK_NAME      = os.getenv('TASK_NAME')
 HUB_URL        = os.getenv('HUB_URL')
+LOGIN= os.getenv('LOGIN')
+PASSWORD= os.getenv('PASSWORD')
 
 current_folder = Path(__file__)
 parent_folder_path  = current_folder.parent

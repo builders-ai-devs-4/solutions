@@ -2,6 +2,11 @@
 import os
 import requests
 
+LOGIN= os.getenv('LOGIN')
+PASSWORD= os.getenv('PASSWORD')
+AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
+OKO_URL     = os.getenv('OKO_URL')
+
 _session: requests.Session | None = None
 
 def get_oko_session() -> requests.Session:
@@ -10,11 +15,11 @@ def get_oko_session() -> requests.Session:
         return _session
 
     _session = requests.Session()
-    resp = _session.post("https://oko.ag3nts.org/", data={
+    resp = _session.post(f"{OKO_URL}/", data={
         "action":     "login",
-        "login":      os.environ["OKO_LOGIN"],
-        "password":   os.environ["OKO_PASSWORD"],
-        "access_key": os.environ["AI_DEVS_SECRET"],
+        "login":      LOGIN,
+        "password":   PASSWORD,
+        "access_key": AI_DEVS_SECRET,
     })
     if "login-form" in resp.text:
         raise RuntimeError("OKO login failed — check credentials/access_key")
