@@ -8,8 +8,6 @@ from pydantic import BaseModel, Field
 import requests
 from bs4 import BeautifulSoup
 
-
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
@@ -29,7 +27,7 @@ _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
 from modules.models import FetchOkoPageInput, SubmitAnswerInput
-from oko_client import get_oko_session
+from oko_client import get_oko_session, reset_oko_session
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
 def submit_answer(action: str) -> tuple[str, dict]:
@@ -81,3 +79,44 @@ def fetch_oko_page(path: str) -> str:
     text = soup.get_text(separator="\n", strip=True)
     agent_logger.info(f"[fetch_oko_page] fetched url={url} chars={len(text)}")
     return text
+
+
+@tool
+def logout_oko_session() -> str:
+    """
+    Log out from the OKO web panel and reset the cached session.
+    Use this when the panel shows a security warning or after finishing a run,
+    before starting a fresh exploration.
+    """
+    agent_logger.info("[logout_oko_session] requested")
+
+    try:
+        session = get_oko_session()
+    except Exception as e:
+        agent_logger.warning(f"[logout_oko_session] could not obtain session: {e!r}")
+        reset_oko_session()
+        return f"Could not obtain session. Local cache reset. Error: {e!r}"
+
+    if session is None:
+        agent_logger.info("[logout_oko_session] no active session")
+        reset_oko_session()
+        return "No active OKO session to log out."
+
+    try:
+        logout_url = f"{OKO_URL}/logout"
+        agent_logger.info(f"[logout_oko_session] calling logout_url={logout_url}")
+        resp = session.get(logout_url, allow_redirects=True)
+        agent_logger.info(
+            f"[logout_oko_session] logout response status={resp.status_code} "
+            f"final_url={getattr(resp, 'url', None)} "
+            f"chars={len(resp.text) if getattr(resp, 'text', None) else 0}"
+        )
+    except Exception as e:
+        agent_logger.warning(f"[logout_oko_session] error during logout request: {e!r}")
+        reset_oko_session()
+        return f"Logout attempted, local session cache reset. Error contacting /logout: {e!r}"
+
+    reset_oko_session()
+    agent_logger.info("[logout_oko_session] local session cache reset")
+
+    return f"Logout called on /logout, status={resp.status_code}, local session cache reset."
