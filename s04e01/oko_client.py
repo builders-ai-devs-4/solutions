@@ -19,6 +19,8 @@ from libs.loggers import agent_logger
 _session: requests.Session | None = None
 
 def get_oko_session() -> requests.Session:
+    
+    agent_logger.info(f"[get_oko_session] DEBUG LOGIN={LOGIN} PASSWORD={PASSWORD} SECRET={AI_DEVS_SECRET}")
     global _session
     if _session is not None:
         agent_logger.info("[get_oko_session] reusing existing session")
