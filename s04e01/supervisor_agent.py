@@ -33,7 +33,7 @@ SUPERVISOR_CONFIG = {
 }
 
 supervisor_model = ChatOpenRouter(
-    model="openai/ gpt-4o",
+    model="openai/gpt-4o",
     temperature=0,
 )
 

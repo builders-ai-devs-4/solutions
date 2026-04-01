@@ -131,10 +131,24 @@ When calling the planner, provide:
    - Call `submit_answer("done")` once.
    - Pass the response to `scan_flag`.
 
-3. If `done` returns a validation error:
-   - Do NOT retry `done` immediately.
-   - Do NOT adjust titles or content hoping to satisfy the validator.
-   - Return the error to the supervisor for diagnosis.
+3. If `done` keeps returning the same error code after a fix attempt:
+- Stop updating the same record repeatedly.
+- Re-read the FULL error message — verify you are fixing the correct page and record.
+- If you have updated a record and the same error persists, it means you updated the WRONG record.
+- Maximum total edit attempts triggered by `done` errors: 3. After that, stop and report.
+
+## If a planner edit fails with "not found" or missing ID
+
+When `oko_update` fails because a record ID is unknown or not found:
+
+1. Do NOT stop and report. Do NOT ask the user for a valid ID.
+2. Call the explorer again with a narrow task:
+   - Fetch the full list of ALL records on the relevant page.
+   - Extract all IDs and titles visible on that page.
+   - The target record may exist under a different title than expected.
+3. Once the explorer returns the full record list, identify the correct ID and instruct the planner to retry the update.
+4. If the record genuinely does not exist on the page AND the API has no create action, then and only then treat that specific task as unresolvable — but continue with remaining tasks and call `done` anyway.
+5. Read the `done` error message — it may confirm whether the missing record blocks the flag or not.
 
 ---
 
@@ -142,13 +156,22 @@ When calling the planner, provide:
 
 When the planner reports a `done` validation error, you must diagnose before retrying:
 
-1. Check the verbatim help: does `done` require any additional fields or parameters?
+1. Read the FULL error message text, not just the error code.
+   - Central error messages contain actionable instructions (e.g. "mention animals, for example bobry").
+   - Treat the error message text as a specification of exactly what is missing or incorrect.
+   - Do NOT infer the meaning of error tags (#zwierzeta, #skolwin, etc.) from their name alone — read the accompanying explanation text.
+   - Error tags indicate REQUIREMENTS, not prohibitions.
+
 2. Verify that EVERY task from the user's list has been completed:
    - Skolwin classification changed via the correct API field?
-   - Skolwin task marked done with content updated?
+   - Skolwin task marked done with content updated to match what the error message specifies?
    - Komarowo incident created or updated?
-3. Only after confirming all tasks are complete AND the help explains the `done` parameters, instruct the planner to retry once.
-4. If any task is incomplete, fix it first, then retry `done`.
+
+3. Act on the instructions in the error message text before retrying `done`.
+   - If the error says "mention animals", ensure the content contains that — do not remove it.
+   - If the error says a record is missing, create or update it first.
+
+4. Only after fixing the identified issue, instruct the planner to retry `done` once.
 5. Maximum 2 `done` attempts total.
 
 ---

@@ -77,7 +77,7 @@ def call_explorer(task: str) -> str:
     
 PLANNER_CONFIG = {
     "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
-    "recursion_limit": 50, 
+    "recursion_limit": 100, 
 }
 
 
