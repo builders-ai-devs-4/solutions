@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 import requests
 
 
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 AI_DEVS_SECRET     = os.environ["AI_DEVS_SECRET"]
@@ -24,16 +25,18 @@ _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import QueryToolInput, SearchToolsInput, SubmitAnswerInput
+from modules.models import FetchOkoPageInput, SubmitAnswerInput
+from oko_client import get_oko_session
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
-def submit_answer(answer: list[str]) -> tuple[str, dict]:
+def submit_answer(action: dict) -> tuple[str, dict]:
     """
-    Submit the final answer to the central verification endpoint.
-    Call this only when you have the complete and confirmed answer ready.
-    After calling this tool, ALWAYS call scan_flag on the response.
+    Submit an action to the central verification endpoint.
+    First call with {'action': 'help'} to discover available actions and fields.
+    Call with {'action': 'done'} only after all edits are confirmed.
+    After calling 'done', ALWAYS call scan_flag on the response.
     """
-    return _post_to_central(answer)
+    return _post_to_central(action)
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
@@ -48,45 +51,19 @@ def scan_flag(text: str) -> Optional[str]:
     agent_logger.info(f"[scan_flag] no flag in text={text}")
     return None
 
-@tool(args_schema=SearchToolsInput)
-def search_tools(query: str) -> str:
+@tool(args_schema=FetchOkoPageInput)
+def fetch_oko_page(path: str) -> str:
     """
-    Search for available tools by describing what you need in natural language.
-    Use this to discover tools before solving the task.
-    Returns a list of available tools matching the query.
+    Fetch a page from the OKO operator panel using an authenticated session.
+    Returns page text content with links preserved.
+    Start at '/' to discover available sections, then navigate deeper.
     """
-    agent_logger.info(f"[search_tools] query={query}")
-    
-    response = requests.post(
-        TOOLSEARCH_URL,
-        json={
-            "apikey": AI_DEVS_SECRET,
-            "query": query,
-        }
-    )
-    agent_logger.info(f"[search_tools] response.text={response.text}")
-    
-    return response.text
+    session = get_oko_session()
+    resp = session.get(f"https://oko.ag3nts.org{path}")
+    soup = BeautifulSoup(resp.text, "html.parser")
 
-@tool(args_schema=QueryToolInput)
-def query_tool(url: str, query: str) -> str:
-    """
-    Call a discovered tool by its URL with a natural language query.
-    Use this after search_tools returns a tool URL to actually fetch data from it.
-    """
-    
-    if not url.startswith("http"):
-        url = f"{HUB_URL}{url}"
-        
-    agent_logger.info(f"[query_tool] query={query}")
-    
-    response = requests.post(
-        url,
-        json={
-            "apikey": AI_DEVS_SECRET,
-            "query": query,
-        }
-    )
-    agent_logger.info(f"[query_tool] response.text={response.text}")
-   
-    return response.text
+    # Zachowaj linki jako tekst — LLM musi je widzieć żeby nawigować
+    for a in soup.find_all("a", href=True):
+        a.replace_with(f"[LINK: {a.get_text(strip=True)} → {a['href']}]")
+
+    return soup.get_text(separator="\n", strip=True)

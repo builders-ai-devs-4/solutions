@@ -30,7 +30,7 @@ os.environ["TASK_DATA_FOLDER_PATH"] = str(task_data_folder)
 os.environ["TOOLSEARCH_URL"] = str(TOOLSEARCH_URL)
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
-from supervisor_agent import SUPERVISOR_CONFIG, supervisor
+# from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 from langfuse import Langfuse, get_client
 
 # Singleton initialization of Langfuse (only once, at startup)
@@ -41,25 +41,33 @@ Langfuse(
     secret_key=os.environ["LANGFUSE_SECRET_KEY"],
 )
 
-supervisor_user_template = (parent_folder_path / "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
-supervisor_user = Template(supervisor_user_template).substitute(
-    SOLUTION_URL=SOLUTION_URL,
-)
+# supervisor_user_template = (parent_folder_path / "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
+# supervisor_user = Template(supervisor_user_template).substitute(
+#     SOLUTION_URL=SOLUTION_URL,
+# )
 
 if __name__ == "__main__":
     
     agent_logger.info(f"[{MODULE_NAME}] Starting task: {TASK_NAME}")
     
-    try:
-        result = supervisor.invoke(
-            {"messages": [{"role": "user", "content": supervisor_user}]},
-            config=SUPERVISOR_CONFIG,
-        )
-    except Exception as e:
-        agent_logger.error(f"[{MODULE_NAME}] Unhandled error: {e}")
-        raise
-    finally:
-        get_client().flush() # Ensure all logs are sent to Langfuse before exiting.
+    # try:
+    #     result = supervisor.invoke(
+    #         {"messages": [{"role": "user", "content": supervisor_user}]},
+    #         config=SUPERVISOR_CONFIG,
+    #     )
+    # except Exception as e:
+    #     agent_logger.error(f"[{MODULE_NAME}] Unhandled error: {e}")
+    #     raise
+    # finally:
+    #     get_client().flush() # Ensure all logs are sent to Langfuse before exiting.
+    # agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
 
-    agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
+    ans = dict()
+    ans["task"] = TASK_NAME
+    ans["apikey"] = AI_DEVS_SECRET
+    ans["answer"] = {'action': 'help'}
+    response = requests.post(SOLUTION_URL, json=ans)
+
+
+    agent_logger.info(f"[{MODULE_NAME}] {response.text}")
 
