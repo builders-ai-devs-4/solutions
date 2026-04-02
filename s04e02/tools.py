@@ -36,7 +36,7 @@ def submit_answer(
     turbineMode: Optional[str] = None,
     unlockCode: Optional[str] = None,
     windMs: Optional[float] = None,
-    configs: Optional[Dict[str, Any]] = None,
+    configs: Optional[List[Dict[str, Any]]] = None,
 ) -> tuple[str, dict]:
     """
     Submit an action to the central API.

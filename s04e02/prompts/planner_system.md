@@ -38,9 +38,25 @@ It will automatically poll until all unlock codes are collected and return them 
 
 ## Step 4 — Send configuration
 
-Send all configuration points at once using the batch config format from the API documentation.
-Hours must always have minutes and seconds set to 00:00.
-Every point must have its unlock code.
+Send all configuration points at once using a single `submit_answer(action='config', configs=[...])` call.
+The `configs` parameter must be a **non-empty array** of config-point objects — never an empty dict `{}`.
+Each object in the array must have: `startDate`, `startHour`, `pitchAngle`, `turbineMode`, `unlockCode`.
+Hours must always end in `00:00` (e.g. `"18:00:00"`).
+Every point must have the unlock code generated for EXACTLY those parameters (same date, hour, windMs, pitchAngle).
+
+Example call:
+```
+submit_answer(
+  action="config",
+  configs=[
+    {"startDate": "2026-04-03", "startHour": "18:00:00", "pitchAngle": 90, "turbineMode": "idle",       "unlockCode": "954f7f..."},
+    {"startDate": "2026-04-06", "startHour": "18:00:00", "pitchAngle": 90, "turbineMode": "idle",       "unlockCode": "487d93..."},
+    {"startDate": "2026-04-07", "startHour": "18:00:00", "pitchAngle": 90, "turbineMode": "idle",       "unlockCode": "1b50d9..."},
+    {"startDate": "2026-04-03", "startHour": "20:00:00", "pitchAngle":  0, "turbineMode": "production", "unlockCode": "db884a..."}
+  ]
+)
+```
+Do NOT call config multiple times. Send all points in one batch.
 
 ## Step 5 — Run turbine check
 Call `submit_answer(action='get', param='turbinecheck')` then `poll_results(1)` to collect the result. This is required before done.

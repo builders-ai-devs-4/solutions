@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from enum import IntEnum
 from pydantic import BaseModel, Field
 
@@ -21,5 +21,5 @@ class SubmitAnswerInput(BaseModel):
     turbineMode: Optional[str] = Field(None, description="Required for single 'config'. Valid values returned by get_help().")
     unlockCode: Optional[str] = Field(None, description="Required for single 'config'. Value obtained from unlockCodeGenerator.")
     windMs: Optional[float] = Field(None, description="Required for 'unlockCodeGenerator'. Wind speed in m/s.")
-    configs: Optional[Dict[str, Any]] = Field(None, description="Required for batch 'config'. Dict keyed by 'YYYY-MM-DD HH:00:00'.")
+    configs: Optional[List[Dict[str, Any]]] = Field(None, description="Required for batch 'config'. Array of config-point objects. Each element must have: startDate (YYYY-MM-DD), startHour (HH:00:00), pitchAngle (int), turbineMode (str), unlockCode (str). Example: [{\"startDate\": \"2026-04-03\", \"startHour\": \"18:00:00\", \"pitchAngle\": 90, \"turbineMode\": \"idle\", \"unlockCode\": \"abc123\"}]")
 
