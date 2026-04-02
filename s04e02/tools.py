@@ -27,19 +27,14 @@ from libs.central_client import _post_to_central, _scan_flag_in_response
 from modules.models import SubmitAnswerInput, WindpowerCode
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
-def submit_answer(answer: Dict[str, Any]) -> tuple[str, dict]:
+def submit_answer(action: str, **extra_fields) -> tuple[str, dict]:
     """
-    Submit an action payload to the central API.
-
-    Known actions (from task description):
-    - {"action": "start"} — opens service window, call first
-    - {"action": "config", "startDate": ..., "startHour": ..., "pitchAngle": ..., "turbineMode": ..., "unlockCode": ...} — single config point
-    - {"action": "config", "configs": {"YYYY-MM-DD HH:00:00": {"pitchAngle": ..., "turbineMode": ..., "unlockCode": ...}}} — batch config
-    - {"action": "done"} — validates configuration and returns flag
-
-    Additional actions are described in API documentation retrieved via get_help().
+    Submit an action to the central API.
+    Call get_help() first to learn all available actions and their required parameters.
+    Pass the action name and any additional required fields directly.
     """
-    return _post_to_central(answer)
+    payload = {"action": action, **extra_fields}
+    return _post_to_central(payload)
 
 @tool(response_format="content_and_artifact")
 def get_help() -> tuple[str, dict]:

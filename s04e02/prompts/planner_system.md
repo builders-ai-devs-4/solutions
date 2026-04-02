@@ -43,10 +43,10 @@ Hours must always have minutes and seconds set to 00:00.
 Every point must have its unlock code.
 
 ## Step 5 — Run turbine check
-Run the turbine check as described in the API documentation. Collect its result before proceeding.
+Call `submit_answer(action='get', param='turbinecheck')` then `poll_results(1)` to collect the result. This is required before done.
 
 ## Step 6 — Finalize
-Send the done action. Run `scan_flag(response)` on the response. Return the flag to Supervisor.
+Call `submit_answer(action='done')`. Run `scan_flag(response)` on the response. Return the flag to Supervisor.
 
 ## Critical rules
 - NEVER skip turbine check before done.

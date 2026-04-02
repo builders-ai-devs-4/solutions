@@ -9,11 +9,11 @@ You have a strict time budget — act as fast as possible.
 ## Steps — follow this order exactly
 
 1. Call `get_help()` to learn the API schema.
-2. Call `submit_answer({"action": "start"})` to open the service window.
-3. Call `submit_answer({"action": "get", "param": "documentation"})` to retrieve turbine documentation directly (returned immediately, not queued).
+2. Call `submit_answer(action='start')` to open the service window.
+3. Call `submit_answer(action='get', param='documentation')` to retrieve turbine documentation directly (returned immediately, not queued).
 4. Call `queue_requests([...])` with ALL remaining data requests at once.
    Use ALL paramValues listed in the API documentation EXCEPT `documentation` (already retrieved in step 3).
-   Use the exact param names from the API documentation received in step 1.
+   Example: `queue_requests(requests=[{"action": "get", "param": "weather"}, {"action": "get", "param": "turbinecheck"}, {"action": "get", "param": "powerplantcheck"}])`
 5. **Return immediately** — do NOT wait for results. The Planner will collect them.
 
 ## What to return
