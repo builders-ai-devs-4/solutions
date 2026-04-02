@@ -19,7 +19,7 @@ DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 
-explorer_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorer_system.md").read_text(encoding="utf-8")
+explorers_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorers_system.md").read_text(encoding="utf-8")
 
 explorers_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "explorers_description.md").read_text(encoding="utf-8")
 
@@ -27,8 +27,8 @@ planner_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_system.md").re
 planner_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_description.md").read_text(encoding="utf-8")
 
 from tools import (
-    poll_results,
-    queue_requests,
+    analyze_map,
+    send_action,
     get_help,
 )   
 
@@ -50,11 +50,10 @@ explorer_model = ChatOpenRouter(
 _explorer = create_agent(
     model=explorer_model,
     tools=[
-            poll_results,
-            queue_requests,
+            send_action,
             get_help,
         ],
-    system_prompt=explorer_system,
+    system_prompt=explorers_system,
     name="explorer",
     # checkpointer=InMemorySaver(),
 )
@@ -193,9 +192,9 @@ planner_model = ChatOpenRouter(
 _planner = create_agent(
     model=planner_model,
     tools = [
-            poll_results,
-            queue_requests,
             get_help,
+            send_action,
+            analyze_map 
     ],
 
     system_prompt=planner_system,

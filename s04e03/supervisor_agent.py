@@ -18,7 +18,7 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 from libs.loggers import LoggerCallbackHandler, agent_logger
 
 from subagents import call_explorers, call_planner
-from tools import _RECURSION_LIMIT, scan_flag, submit_answer
+from tools import _RECURSION_LIMIT, call_helicopter, scan_flag, submit_answer
 
 
 langfuse_handler = CallbackHandler()
@@ -40,9 +40,10 @@ supervisor_model = ChatOpenRouter(
 supervisor = create_agent(
     model=supervisor_model,
     tools=[
-        call_planner,           # jednorazowy — getMap + klastry
-        call_explorers,          # wielokrotny — getMap + klastry + getHelp + submitAnswer
-        submit_answer,           # callHelicopter
+        call_planner,           
+        call_explorers,          
+        submit_answer,   
+        call_helicopter,       
         scan_flag,
         
         
