@@ -27,13 +27,38 @@ from libs.central_client import _post_to_central, _scan_flag_in_response
 from modules.models import SubmitAnswerInput, WindpowerCode
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
-def submit_answer(action: str, **extra_fields) -> tuple[str, dict]:
+def submit_answer(
+    action: str,
+    param: Optional[str] = None,
+    startDate: Optional[str] = None,
+    startHour: Optional[str] = None,
+    pitchAngle: Optional[int] = None,
+    turbineMode: Optional[str] = None,
+    unlockCode: Optional[str] = None,
+    windMs: Optional[float] = None,
+    configs: Optional[Dict[str, Any]] = None,
+) -> tuple[str, dict]:
     """
     Submit an action to the central API.
     Call get_help() first to learn all available actions and their required parameters.
-    Pass the action name and any additional required fields directly.
     """
-    payload = {"action": action, **extra_fields}
+    payload: Dict[str, Any] = {"action": action}
+    if param is not None:
+        payload["param"] = param
+    if startDate is not None:
+        payload["startDate"] = startDate
+    if startHour is not None:
+        payload["startHour"] = startHour
+    if pitchAngle is not None:
+        payload["pitchAngle"] = pitchAngle
+    if turbineMode is not None:
+        payload["turbineMode"] = turbineMode
+    if unlockCode is not None:
+        payload["unlockCode"] = unlockCode
+    if windMs is not None:
+        payload["windMs"] = windMs
+    if configs is not None:
+        payload["configs"] = configs
     return _post_to_central(payload)
 
 @tool(response_format="content_and_artifact")

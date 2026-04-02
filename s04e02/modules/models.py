@@ -1,6 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from enum import IntEnum
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class WindpowerCode(IntEnum):
@@ -11,14 +11,15 @@ class WindpowerCode(IntEnum):
 
 
 class SubmitAnswerInput(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
     action: str = Field(
-        description=(
-            "API action name. Call get_help() first to learn all available actions "
-            "and their required parameters. Pass all additional required fields "
-            "(e.g. param, startDate, startHour, windMs, pitchAngle, configs) "
-            "alongside action based on what get_help() returns."
-        )
+        description="API action name. Call get_help() first to learn valid actions and required fields."
     )
+    param: Optional[str] = Field(None, description="Required for action='get'. Valid values returned by get_help().")
+    startDate: Optional[str] = Field(None, description="Required for 'config' and 'unlockCodeGenerator'. Format: YYYY-MM-DD.")
+    startHour: Optional[str] = Field(None, description="Required for 'config' and 'unlockCodeGenerator'. Format: HH:00:00.")
+    pitchAngle: Optional[int] = Field(None, description="Required for 'config' and 'unlockCodeGenerator'. Blade pitch angle in degrees.")
+    turbineMode: Optional[str] = Field(None, description="Required for single 'config'. Valid values returned by get_help().")
+    unlockCode: Optional[str] = Field(None, description="Required for single 'config'. Value obtained from unlockCodeGenerator.")
+    windMs: Optional[float] = Field(None, description="Required for 'unlockCodeGenerator'. Wind speed in m/s.")
+    configs: Optional[Dict[str, Any]] = Field(None, description="Required for batch 'config'. Dict keyed by 'YYYY-MM-DD HH:00:00'.")
 
