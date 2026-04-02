@@ -28,8 +28,8 @@ planner_system = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_system.md").re
 planner_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_description.md").read_text(encoding="utf-8")
 
 from tools import (
-
     queue_requests,
+    poll_results,
     scan_flag,
     stopwatch,
     submit_answer,
@@ -55,7 +55,8 @@ _explorer = create_agent(
     tools=[
             submit_answer,
             get_help,
-            queue_requests
+            queue_requests,
+            poll_results,
         ],
     system_prompt=explorer_system,
     name="explorer",

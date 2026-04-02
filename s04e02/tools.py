@@ -19,10 +19,11 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 
 MAX_TOOL_ITERATIONS = 20
 _RECURSION_LIMIT = MAX_TOOL_ITERATIONS * 10 + 2  # 202
+_POLL_INTERVAL_SECONDS = 2
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import SubmitAnswerInput
+from modules.models import SubmitAnswerInput, WindpowerCode
 
 @tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
 def submit_answer(answer: Dict[str, Any]) -> tuple[str, dict]:
@@ -72,6 +73,27 @@ def stopwatch(start_time: Optional[float] = None) -> float:
     if start_time is None:
         return now
     return now - start_time
+
+
+@tool
+def poll_results(count: int) -> str:
+    """
+    Poll getResult repeatedly until exactly `count` results are collected.
+    Waits 2 seconds between polls when no result is ready yet.
+    Use this instead of calling submit_answer(getResult) repeatedly from the agent.
+    Returns all collected results as a JSON list.
+    """
+    collected = []
+    while len(collected) < count:
+        content, _ = _post_to_central({"action": "getResult"})
+        result = json.loads(content)
+        if result.get("code") == WindpowerCode.NO_RESULT_YET:
+            agent_logger.info(f"[poll_results] not ready yet, waiting {_POLL_INTERVAL_SECONDS}s... ({len(collected)}/{count})")
+            time.sleep(_POLL_INTERVAL_SECONDS)
+        else:
+            collected.append(result)
+            agent_logger.info(f"[poll_results] collected {len(collected)}/{count} — sourceFunction={result.get('sourceFunction')}")
+    return json.dumps(collected, ensure_ascii=False)
 
 
 @tool
