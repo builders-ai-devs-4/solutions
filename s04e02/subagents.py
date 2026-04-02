@@ -91,7 +91,9 @@ _planner = create_agent(
             scan_flag,
             submit_answer,
             stopwatch,
-            queue_requests
+            queue_requests,
+            get_help,
+            
     ],
 
     system_prompt=planner_system,

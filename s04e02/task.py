@@ -40,10 +40,7 @@ Langfuse(
     secret_key=os.environ["LANGFUSE_SECRET_KEY"],
 )
 
-supervisor_user_template = (parent_folder_path / "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
-supervisor_user = Template(supervisor_user_template).substitute(
-    MAX_EDIT_RETRIES=3,
-)
+supervisor_user = (parent_folder_path / "prompts" / "supervisor_user.md").read_text(encoding="utf-8")
 
 if __name__ == "__main__":
     
