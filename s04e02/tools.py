@@ -1,11 +1,12 @@
 import os
 import sys
 import time
-from typing import Any, Dict, Optional
-from pathlib import Path
+import asyncio
+import aiohttp
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
-import requests
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -71,3 +72,62 @@ def stopwatch(start_time: Optional[float] = None) -> float:
     if start_time is None:
         return now
     return now - start_time
+
+
+@tool
+def queue_all_data_requests() -> str:
+    """
+    Queue weather, turbinecheck and powerplantcheck simultaneously using threads.
+    Sends all 3 requests in parallel, returns all queuing confirmations.
+    Call getResult separately afterwards to collect the results.
+    """
+    params = ["weather", "turbinecheck", "powerplantcheck"]
+    results = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(_post_to_central, {"action": "get", "param": p}): p
+            for p in params
+        }
+        for future in as_completed(futures):
+            param = futures[future]
+            results[param] = future.result()[0]
+    agent_logger.info(f"[queue_all_data_requests] results={results}")
+    return json.dumps(results, ensure_ascii=False)
+
+
+async def _async_post(session: aiohttp.ClientSession, answer: dict) -> str:
+    payload = {
+        "apikey": AI_DEVS_SECRET,
+        "task": TASK_NAME,
+        "answer": answer,
+    }
+    async with session.post(SOLUTION_URL, json=payload) as resp:
+        result = await resp.json()
+        agent_logger.info(f"[async_post] answer={answer} response={result}")
+        return json.dumps(result, ensure_ascii=False)
+
+
+@tool
+def queue_unlock_codes(configs: List[Dict[str, Any]]) -> str:
+    """
+    Queue multiple unlockCodeGenerator requests simultaneously using asyncio.
+    Each config must have: startDate, startHour, windMs, pitchAngle.
+    Returns all queuing confirmations. Call getResult separately to collect the codes.
+
+    Example input:
+    [
+      {"startDate": "2026-04-02", "startHour": "14:00:00", "windMs": 12, "pitchAngle": 30},
+      {"startDate": "2026-04-02", "startHour": "18:00:00", "windMs": 25, "pitchAngle": 90}
+    ]
+    """
+    async def _run():
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                _async_post(session, {"action": "unlockCodeGenerator", **cfg})
+                for cfg in configs
+            ]
+            return await asyncio.gather(*tasks)
+
+    results = asyncio.run(_run())
+    agent_logger.info(f"[queue_unlock_codes] queued {len(configs)} unlock code requests")
+    return json.dumps(results, ensure_ascii=False)
