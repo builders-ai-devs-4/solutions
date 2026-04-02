@@ -29,6 +29,7 @@ planner_description = (Path(PARENT_FOLDER_PATH) / "prompts" / "planner_descripti
 
 from tools import (
 
+    queue_requests,
     scan_flag,
     stopwatch,
     submit_answer,
@@ -54,6 +55,7 @@ _explorer = create_agent(
     tools=[
             submit_answer,
             get_help,
+            queue_requests
         ],
     system_prompt=explorer_system,
     name="explorer",
@@ -88,8 +90,8 @@ _planner = create_agent(
     tools = [
             scan_flag,
             submit_answer,
-            get_help,
-            stopwatch
+            stopwatch,
+            queue_requests
     ],
 
     system_prompt=planner_system,

@@ -75,6 +75,36 @@ def stopwatch(start_time: Optional[float] = None) -> float:
 
 
 @tool
+def queue_requests(answers: List[Dict[str, Any]]) -> str:
+    """
+    Queue multiple API requests simultaneously using threads.
+    Agent builds the list of answer payloads and passes them all at once.
+    Returns all queuing confirmations. Use submit_answer with getResult to collect results.
+
+    Example input:
+    [
+      {"action": "get", "param": "weather"},
+      {"action": "get", "param": "turbinecheck"},
+      {"action": "unlockCodeGenerator", "startDate": "2026-04-02", "startHour": "14:00:00", "windMs": 12, "pitchAngle": 30}
+    ]
+    """
+    results = []
+    with ThreadPoolExecutor(max_workers=len(answers)) as executor:
+        futures = {
+            executor.submit(_post_to_central, answer): i
+            for i, answer in enumerate(answers)
+        }
+        ordered = [None] * len(answers)
+        for future in as_completed(futures):
+            i = futures[future]
+            ordered[i] = future.result()[0]
+    agent_logger.info(f"[queue_requests] queued {len(answers)} requests")
+    return json.dumps(ordered, ensure_ascii=False)
+
+
+# --- OLD tools kept for comparison ---
+
+@tool
 def queue_all_data_requests() -> str:
     """
     Queue weather, turbinecheck and powerplantcheck simultaneously using threads.

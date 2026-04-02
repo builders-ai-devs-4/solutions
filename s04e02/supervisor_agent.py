@@ -18,7 +18,7 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 from libs.loggers import LoggerCallbackHandler, agent_logger
 
 from subagents import call_explorer, call_planner
-from tools import _RECURSION_LIMIT, stopwatch
+from tools import _RECURSION_LIMIT, scan_flag, stopwatch
 
 
 langfuse_handler = CallbackHandler()
@@ -42,7 +42,9 @@ supervisor = create_agent(
     tools=[
         call_explorer,
         call_planner,
-        stopwatch
+        stopwatch,
+        scan_flag,
+        
         
     ],
     system_prompt=supervisor_system,
