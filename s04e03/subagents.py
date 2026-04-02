@@ -149,7 +149,7 @@ async def _run_explorers_with_cancel(tasks: list[str]) -> dict:
 
 @tool(
     "call_explorers",
-    description=explorer_description,
+    description=explorers_description,
 )
 def call_explorers(tasks: list[str]) -> dict:
     """

@@ -8,6 +8,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 from langchain_core.tools import tool
+from pydantic import BaseModel
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -24,47 +25,67 @@ _POLL_INTERVAL_SECONDS = 2
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import SubmitAnswerInput, WindpowerCode
+from modules.models import CallHelicopterInput, SubmitAnswerInput, WindpowerCode
 
-@tool(args_schema=SubmitAnswerInput, response_format="content_and_artifact")
-def submit_answer(
-    action: str,
-    param: Optional[str] = None,
-    startDate: Optional[str] = None,
-    startHour: Optional[str] = None,
-    pitchAngle: Optional[int] = None,
-    turbineMode: Optional[str] = None,
-    unlockCode: Optional[str] = None,
-    windMs: Optional[float] = None,
-    configs: Optional[List[Dict[str, Any]]] = None,
-) -> tuple[str, dict]:
+
+
+@tool("submit_answer", args_schema=SubmitAnswerInput)
+def submit_answer(action: str, destination: str | None = None) -> str:
     """
-    Submit an action to the central API.
-    Call get_help() first to learn all available actions and their required parameters.
+    Submits an action to the central API via _post_to_central.
+
+    Use this tool to send any action to the game API, including finalizing
+    the mission ('done'), calling the rescue helicopter ('callHelicopter'),
+    or any other supported action discovered via 'get_help'.
+
+    For 'callHelicopter', the destination field is required — it must contain
+    the grid coordinates where a scout has confirmed the target's presence.
+    For all other actions, destination should be omitted.
+
+    Args:
+        action: Action name to perform, e.g. 'done', 'help', 'callHelicopter'.
+        destination: Grid coordinates for helicopter landing zone, e.g. 'F6'.
+                     Required only when action is 'callHelicopter', None otherwise.
+
+    Returns:
+        Raw response string from the central API.
+
+    Example:
+        >>> submit_answer(action="callHelicopter", destination="F6")
+        >>> submit_answer(action="done")
     """
-    payload: Dict[str, Any] = {"action": action}
-    if param is not None:
-        payload["param"] = param
-    if startDate is not None:
-        payload["startDate"] = startDate
-    if startHour is not None:
-        payload["startHour"] = startHour
-    if pitchAngle is not None:
-        payload["pitchAngle"] = pitchAngle
-    if turbineMode is not None:
-        payload["turbineMode"] = turbineMode
-    if unlockCode is not None:
-        payload["unlockCode"] = unlockCode
-    if windMs is not None:
-        payload["windMs"] = windMs
-    if configs is not None:
-        payload["configs"] = configs
+    payload = {"action": action}
+    if destination:
+        payload["destination"] = destination
     return _post_to_central(payload)
+
+
+@tool("call_helicopter", args_schema=CallHelicopterInput)
+def call_helicopter(destination: str) -> str:
+    """
+    Calls the rescue helicopter to evacuate the target from a confirmed location.
+
+    Use this tool immediately after call_explorers returns found=True.
+    The destination must be the exact coordinates reported by the explorer
+    in the FOUND: <coordinates> response — do not guess or modify them.
+
+    Args:
+        destination: Grid coordinates where the helicopter should land, e.g. 'F6'.
+                     Must match the field where the scout confirmed the target.
+
+    Returns:
+        Raw response string from the central API.
+
+    Example:
+        >>> call_helicopter(destination="F6")
+    """
+    return _post_to_central({"action": "callHelicopter", "destination": destination})
+
 
 @tool(response_format="content_and_artifact")
 def get_help() -> tuple[str, dict]:
     """
-    Retrieve the full API documentation for the windpower task.
+    Retrieve the full API documentation for the domatowo task.
     Call this first to learn all available actions and their required parameters.
     Returns documentation directly (not asynchronous, no getResult needed).
     """
@@ -85,48 +106,23 @@ def scan_flag(text: str) -> Optional[str]:
     return None
 
 @tool
-def poll_results(count: int) -> str:
+def send_action(payload: Dict[str, Any]) -> str:
     """
-    Poll getResult repeatedly until exactly `count` results are collected.
-    Waits 2 seconds between polls when no result is ready yet.
-    Use this instead of calling submit_answer(getResult) repeatedly from the agent.
-    Returns all collected results as a JSON list.
-    """
-    collected = []
-    while len(collected) < count:
-        content, _ = _post_to_central({"action": "getResult"})
-        result = json.loads(content)
-        if result.get("code") == WindpowerCode.NO_RESULT_YET:
-            agent_logger.info(f"[poll_results] not ready yet, waiting {_POLL_INTERVAL_SECONDS}s... ({len(collected)}/{count})")
-            time.sleep(_POLL_INTERVAL_SECONDS)
-        else:
-            collected.append(result)
-            agent_logger.info(f"[poll_results] collected {len(collected)}/{count} — sourceFunction={result.get('sourceFunction')}")
-    return json.dumps(collected, ensure_ascii=False)
+    Sends a single action to the game API and returns the result immediately.
+    Use for all game actions: create, move, inspect, getLogs, getMap, help.
 
+    Args:
+        payload: Action payload dict, e.g.:
+            {"action": "inspect", "field": "F6"}
+            {"action": "move", "direction": "N"}
 
-@tool
-def queue_requests(requests: List[Dict[str, Any]]) -> str:
-    """
-    Queue multiple API requests simultaneously using threads.
-    Pass the list of request payloads as the 'requests' parameter.
-    Returns all queuing confirmations. Use poll_results(count) to collect results.
+    Returns:
+        JSON string with the API response.
 
-    Example input:
-    [
-      {"action": "get", "param": "weather"},
-      {"action": "get", "param": "turbinecheck"},
-      {"action": "unlockCodeGenerator", "startDate": "2026-04-02", "startHour": "14:00:00", "windMs": 12, "pitchAngle": 30}
-    ]
+    Example:
+        >>> send_action({"action": "inspect", "field": "F6"})
+        >>> send_action({"action": "create", "type": "transporter", "passengers": 2})
     """
-    with ThreadPoolExecutor(max_workers=len(requests)) as executor:
-        futures = {
-            executor.submit(_post_to_central, req): i
-            for i, req in enumerate(requests)
-        }
-        ordered = [None] * len(requests)
-        for future in as_completed(futures):
-            i = futures[future]
-            ordered[i] = future.result()[0]
-    agent_logger.info(f"[queue_requests] queued {len(requests)} requests")
-    return json.dumps(ordered, ensure_ascii=False)
+    content, _ = _post_to_central(payload)
+    agent_logger.info(f"[send_action] payload={payload} | response={content[:200]}")
+    return content
