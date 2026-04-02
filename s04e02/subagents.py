@@ -56,7 +56,6 @@ _explorer = create_agent(
             submit_answer,
             get_help,
             queue_requests,
-            poll_results,
         ],
     system_prompt=explorer_system,
     name="explorer",
@@ -93,8 +92,8 @@ _planner = create_agent(
             submit_answer,
             stopwatch,
             queue_requests,
+            poll_results,
             get_help,
-            
     ],
 
     system_prompt=planner_system,

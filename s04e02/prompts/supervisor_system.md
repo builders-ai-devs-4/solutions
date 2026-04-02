@@ -19,10 +19,12 @@ Repeat the following loop until `scan_flag` returns a flag {FLG:...}:
 6. If no flag — start a new attempt from step 1.
 
 ## What to pass to Explorer
-Instruct Explorer to: retrieve API documentation, open the service window, queue all data requests in parallel, and collect all results.
+Instruct Explorer to: retrieve API documentation, open the service window, get turbine documentation, and queue all data requests in parallel. Explorer will return immediately after queuing — it does NOT wait for results.
 
 ## What to pass to Planner
-Pass the complete raw data returned by Explorer — weather forecast, turbine specification, power plant requirements. Do NOT modify or summarize the data.
+Pass the complete raw output returned by Explorer — it contains the API documentation, session info, turbine documentation, and confirmation that 3 requests have been queued (weather, turbinecheck, powerplantcheck).
+Tell Planner: "Call poll_results(3) immediately as your first action to collect the queued data, then analyze and configure."
+Do NOT modify or summarize the Explorer's output — pass it verbatim.
 
 ## Critical rules
 - Do NOT call Explorer and Planner in parallel — Planner depends on Explorer's output.

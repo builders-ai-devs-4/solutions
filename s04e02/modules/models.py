@@ -1,6 +1,6 @@
 from typing import Any, Dict
 from enum import IntEnum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class WindpowerCode(IntEnum):
@@ -18,4 +18,13 @@ class SubmitAnswerInput(BaseModel):
             "Additional actions available after calling get_help()."
         )
     )
-    
+
+    @model_validator(mode="before")
+    @classmethod
+    def auto_wrap(cls, values: Any) -> Any:
+        """If the LLM sends the action dict directly (without wrapping in 'answer'),
+        auto-wrap it so {'action': 'start'} becomes {'answer': {'action': 'start'}}."""
+        if isinstance(values, dict) and "answer" not in values and "action" in values:
+            return {"answer": values}
+        return values
+

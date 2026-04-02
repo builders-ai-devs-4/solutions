@@ -3,7 +3,7 @@ from typing import Optional
 import re
 from libs.loggers import agent_logger
 
-FLAG_RE = re.compile(r"\{FLG:[^}]+\}")
+FLAG_RE = re.compile(r"\{FLG:[A-Za-z0-9][^}]*\}")
     
 def _post_to_central(answer) -> tuple[str, dict]:
     """Private helper — common logic for POSTing to the central server."""

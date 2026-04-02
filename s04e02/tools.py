@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import time
 import asyncio
 import aiohttp
@@ -52,14 +53,15 @@ def get_help() -> tuple[str, dict]:
 @tool
 def scan_flag(text: str) -> Optional[str]:
     """
-    Search for a success flag matching the pattern {FLG:...} in the given text.
-    Call this tool to analyze the server's response after submitting a solution to verify task completion.
+    Search for a real success flag matching the pattern {FLG:XXXXX} in the given text.
+    The flag must start with an alphanumeric character after 'FLG:' — placeholder text like {FLG:...} is ignored.
+    Call this tool on the server's done() response to verify task completion.
     """
     flag = _scan_flag_in_response(text)
     if flag:
         agent_logger.info(f"[scan_flag] Flag found: {flag}")
         return flag
-    agent_logger.info(f"[scan_flag] no flag in text={text}")
+    agent_logger.info(f"[scan_flag] no flag in text={text[:200]}")
     return None
 
 @tool
@@ -97,11 +99,11 @@ def poll_results(count: int) -> str:
 
 
 @tool
-def queue_requests(answers: List[Dict[str, Any]]) -> str:
+def queue_requests(requests: List[Dict[str, Any]]) -> str:
     """
     Queue multiple API requests simultaneously using threads.
-    Agent builds the list of answer payloads and passes them all at once.
-    Returns all queuing confirmations. Use submit_answer with getResult to collect results.
+    Pass the list of request payloads as the 'requests' parameter.
+    Returns all queuing confirmations. Use poll_results(count) to collect results.
 
     Example input:
     [
@@ -110,17 +112,16 @@ def queue_requests(answers: List[Dict[str, Any]]) -> str:
       {"action": "unlockCodeGenerator", "startDate": "2026-04-02", "startHour": "14:00:00", "windMs": 12, "pitchAngle": 30}
     ]
     """
-    results = []
-    with ThreadPoolExecutor(max_workers=len(answers)) as executor:
+    with ThreadPoolExecutor(max_workers=len(requests)) as executor:
         futures = {
-            executor.submit(_post_to_central, answer): i
-            for i, answer in enumerate(answers)
+            executor.submit(_post_to_central, req): i
+            for i, req in enumerate(requests)
         }
-        ordered = [None] * len(answers)
+        ordered = [None] * len(requests)
         for future in as_completed(futures):
             i = futures[future]
             ordered[i] = future.result()[0]
-    agent_logger.info(f"[queue_requests] queued {len(answers)} requests")
+    agent_logger.info(f"[queue_requests] queued {len(requests)} requests")
     return json.dumps(ordered, ensure_ascii=False)
 
 
