@@ -37,3 +37,22 @@ class SubmitAnswerInput(BaseModel):
     action: str
     destination: str | None = None
     
+class AnalyzeMapInput(BaseModel):
+    """
+    Input schema for the analyze_map tool.
+
+    This model carries the raw map payload returned by the getMap action.
+    The payload may be either:
+    - the full API response containing a nested "map" object, or
+    - the "map" object itself.
+
+    The value is expected to be a JSON string because tool inputs are
+    passed through the agent/tool interface as serialized text.
+    """
+
+    raw_map: str = Field(
+        description=(
+            "Raw map payload as a JSON string. "
+            "It may contain either the full getMap response or only the nested map object."
+        )
+    )

@@ -1,11 +1,6 @@
 import os
 import sys
-import re
-import time
-import asyncio
-import aiohttp
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 from langchain_core.tools import tool
 from pydantic import BaseModel
@@ -25,9 +20,11 @@ _POLL_INTERVAL_SECONDS = 2
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import CallHelicopterInput, SubmitAnswerInput, WindpowerCode
+from modules.models import CallHelicopterInput, SubmitAnswerInput
 
 from map_utils import (
+    AnalyzeMapInput,
+    analyze_map_payload,
     parse_map,
     extract_tall_blocks,
     greedy_cluster,
@@ -135,55 +132,65 @@ def send_action(payload: Dict[str, Any]) -> str:
     return content
 
 
-@tool
+@tool(args_schema=AnalyzeMapInput)
 def analyze_map(raw_map: str) -> str:
     """
-    Parses the raw map response from getMap, identifies tall buildings,
-    groups them into spatial clusters, and returns drop points for transporters.
-
-    Call this immediately after send_action({'action': 'getMap'}) to get
-    a structured cluster plan ready for call_explorers.
-
-    Args:
-        raw_map: Raw response string from getMap action.
-
-    Returns:
-        JSON string with list of clusters, each containing:
-            cluster_id (int): cluster index (0-based)
-            blocks (list[str]): grid coordinates of tall buildings, e.g. ['F6', 'F7']
-            drop_point (str): recommended transporter drop point (centroid), e.g. 'F6'
-            block_count (int): number of tall blocks in this cluster
-
-    Example output:
-        [
-            {"cluster_id": 0, "blocks": ["A1", "A2", "B1"], "drop_point": "A1", "block_count": 3},
-            {"cluster_id": 1, "blocks": ["H8", "H9"], "drop_point": "H8", "block_count": 2}
-        ]
+    Analyze getMap response using only task data structure.
+    Detect numbered tile families, select the highest active family,
+    extract target fields, and build exploration clusters.
     """
-    grid = parse_map(raw_map)
-    tall_blocks = extract_tall_blocks(grid)
+    result = analyze_map_payload(raw_map)
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
-    if not tall_blocks:
-        agent_logger.warning("[analyze_map] no tall blocks found — check TALL_BLOCK_SYMBOLS")
-        return json.dumps([])
+# @tool
+# def analyze_map(raw_map: str) -> str:
+#     """
+#     Parses the raw map response from getMap, identifies tall buildings,
+#     groups them into spatial clusters, and returns drop points for transporters.
 
-    clusters = greedy_cluster(tall_blocks)
-    result = []
+#     Call this immediately after send_action({'action': 'getMap'}) to get
+#     a structured cluster plan ready for call_explorers.
 
-    for idx, cluster in enumerate(clusters):
-        drop_row, drop_col = centroid(cluster)
-        cluster_data = {
-            "cluster_id": idx,
-            "blocks": [coords_to_grid(r, c) for r, c in cluster],
-            "drop_point": coords_to_grid(drop_row, drop_col),
-            "block_count": len(cluster),
-        }
-        result.append(cluster_data)
-        agent_logger.info(
-            f"[analyze_map] cluster_{idx} | "
-            f"blocks={cluster_data['blocks']} | "
-            f"drop_point={cluster_data['drop_point']}"
-        )
+#     Args:
+#         raw_map: Raw response string from getMap action.
 
-    agent_logger.info(f"[analyze_map] total clusters={len(result)} | total blocks={len(tall_blocks)}")
-    return json.dumps(result, ensure_ascii=False)
+#     Returns:
+#         JSON string with list of clusters, each containing:
+#             cluster_id (int): cluster index (0-based)
+#             blocks (list[str]): grid coordinates of tall buildings, e.g. ['F6', 'F7']
+#             drop_point (str): recommended transporter drop point (centroid), e.g. 'F6'
+#             block_count (int): number of tall blocks in this cluster
+
+#     Example output:
+#         [
+#             {"cluster_id": 0, "blocks": ["A1", "A2", "B1"], "drop_point": "A1", "block_count": 3},
+#             {"cluster_id": 1, "blocks": ["H8", "H9"], "drop_point": "H8", "block_count": 2}
+#         ]
+#     """
+#     grid = parse_map(raw_map)
+#     tall_blocks = extract_tall_blocks(grid)
+
+#     if not tall_blocks:
+#         agent_logger.warning("[analyze_map] no tall blocks found — check TALL_BLOCK_SYMBOLS")
+#         return json.dumps([])
+
+#     clusters = greedy_cluster(tall_blocks)
+#     result = []
+
+#     for idx, cluster in enumerate(clusters):
+#         drop_row, drop_col = centroid(cluster)
+#         cluster_data = {
+#             "cluster_id": idx,
+#             "blocks": [coords_to_grid(r, c) for r, c in cluster],
+#             "drop_point": coords_to_grid(drop_row, drop_col),
+#             "block_count": len(cluster),
+#         }
+#         result.append(cluster_data)
+#         agent_logger.info(
+#             f"[analyze_map] cluster_{idx} | "
+#             f"blocks={cluster_data['blocks']} | "
+#             f"drop_point={cluster_data['drop_point']}"
+#         )
+
+#     agent_logger.info(f"[analyze_map] total clusters={len(result)} | total blocks={len(tall_blocks)}")
+#     return json.dumps(result, ensure_ascii=False)
