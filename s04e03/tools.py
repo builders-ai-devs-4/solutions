@@ -20,11 +20,38 @@ _POLL_INTERVAL_SECONDS = 2
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import AnalyzeMapInput, CallHelicopterInput, SubmitAnswerInput
+from modules.models import AnalyzeMapInput, CallHelicopterInput, SendActionInput, SubmitAnswerInput
 
 from map_utils import (
     analyze_map_payload,
    )
+
+
+@tool("submit_answer", args_schema=SubmitAnswerInput)
+def submit_answer(action: str, destination: str | None = None) -> str:
+    """
+    Submit a simple action to the central API via _post_to_central.
+
+    This tool is a thin convenience wrapper over the generic central request path.
+    It should be used for actions that fit the payload shape:
+    {"action": <action_name>}
+    or:
+    {"action": "callHelicopter", "destination": <grid_coordinate>}
+
+    Supported usage examples include:
+    - finalizing the mission with action="done"
+    - retrieving central help with action="help"
+    - calling the rescue helicopter with action="callHelicopter" and destination="F6"
+
+    Args:
+        action: Central action name.
+        destination: Optional grid coordinate used only for helicopter dispatch.
+
+    Returns:
+        Raw response string returned by the central API.
+    """
+    payload = {"action": action}
+
 
 @tool(args_schema=SendActionInput)
 def send_action(
@@ -96,6 +123,8 @@ def call_helicopter(destination: str) -> str:
     return _post_to_central({"action": "callHelicopter", "destination": destination})
 
 
+_help_cache: str | None = None
+
 @tool(response_format="content_and_artifact")
 def get_help() -> tuple[str, dict]:
     """
@@ -103,7 +132,14 @@ def get_help() -> tuple[str, dict]:
     Call this first to learn all available actions and their required parameters.
     Returns documentation directly (not asynchronous, no getResult needed).
     """
-    return _post_to_central({"action": "help"})
+    global _help_cache
+    if _help_cache is not None:
+        agent_logger.warning("[get_help] returning cached result — API not called again")
+        return _help_cache
+    
+    result = _post_to_central({"action": "help"})
+    _help_cache = result
+    return result
 
 @tool
 def scan_flag(text: str) -> Optional[str]:
@@ -119,28 +155,6 @@ def scan_flag(text: str) -> Optional[str]:
     agent_logger.info(f"[scan_flag] no flag in text={text[:200]}")
     return None
 
-@tool
-def send_action(payload: Dict[str, Any]) -> str:
-    """
-    Sends a single action to the game API and returns the result immediately.
-    Use for all game actions: create, move, inspect, getLogs, getMap, help.
-
-    Args:
-        payload: Action payload dict, e.g.:
-            {"action": "inspect", "field": "F6"}
-            {"action": "move", "direction": "N"}
-
-    Returns:
-        JSON string with the API response.
-
-    Example:
-        >>> send_action({"action": "inspect", "field": "F6"})
-        >>> send_action({"action": "create", "type": "transporter", "passengers": 2})
-    """
-    content, _ = _post_to_central(payload)
-    agent_logger.info(f"[send_action] payload={payload} | response={content[:200]}")
-    return content
-
 
 @tool(args_schema=AnalyzeMapInput)
 def analyze_map(raw_map: str) -> str:
@@ -151,56 +165,3 @@ def analyze_map(raw_map: str) -> str:
     """
     result = analyze_map_payload(raw_map)
     return json.dumps(result, ensure_ascii=False, indent=2)
-
-# @tool
-# def analyze_map(raw_map: str) -> str:
-#     """
-#     Parses the raw map response from getMap, identifies tall buildings,
-#     groups them into spatial clusters, and returns drop points for transporters.
-
-#     Call this immediately after send_action({'action': 'getMap'}) to get
-#     a structured cluster plan ready for call_explorers.
-
-#     Args:
-#         raw_map: Raw response string from getMap action.
-
-#     Returns:
-#         JSON string with list of clusters, each containing:
-#             cluster_id (int): cluster index (0-based)
-#             blocks (list[str]): grid coordinates of tall buildings, e.g. ['F6', 'F7']
-#             drop_point (str): recommended transporter drop point (centroid), e.g. 'F6'
-#             block_count (int): number of tall blocks in this cluster
-
-#     Example output:
-#         [
-#             {"cluster_id": 0, "blocks": ["A1", "A2", "B1"], "drop_point": "A1", "block_count": 3},
-#             {"cluster_id": 1, "blocks": ["H8", "H9"], "drop_point": "H8", "block_count": 2}
-#         ]
-#     """
-#     grid = parse_map(raw_map)
-#     tall_blocks = extract_tall_blocks(grid)
-
-#     if not tall_blocks:
-#         agent_logger.warning("[analyze_map] no tall blocks found — check TALL_BLOCK_SYMBOLS")
-#         return json.dumps([])
-
-#     clusters = greedy_cluster(tall_blocks)
-#     result = []
-
-#     for idx, cluster in enumerate(clusters):
-#         drop_row, drop_col = centroid(cluster)
-#         cluster_data = {
-#             "cluster_id": idx,
-#             "blocks": [coords_to_grid(r, c) for r, c in cluster],
-#             "drop_point": coords_to_grid(drop_row, drop_col),
-#             "block_count": len(cluster),
-#         }
-#         result.append(cluster_data)
-#         agent_logger.info(
-#             f"[analyze_map] cluster_{idx} | "
-#             f"blocks={cluster_data['blocks']} | "
-#             f"drop_point={cluster_data['drop_point']}"
-#         )
-
-#     agent_logger.info(f"[analyze_map] total clusters={len(result)} | total blocks={len(tall_blocks)}")
-#     return json.dumps(result, ensure_ascii=False)

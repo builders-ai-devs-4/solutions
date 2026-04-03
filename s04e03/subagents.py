@@ -51,7 +51,6 @@ _explorer = create_agent(
     model=explorer_model,
     tools=[
             send_action,
-            get_help,
         ],
     system_prompt=explorers_system,
     name="explorer",
@@ -192,7 +191,6 @@ planner_model = ChatOpenRouter(
 _planner = create_agent(
     model=planner_model,
     tools = [
-            get_help,
             send_action,
             analyze_map 
     ],

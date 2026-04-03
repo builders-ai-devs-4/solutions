@@ -1,15 +1,4 @@
-Runs multiple Explorer agents in parallel, one per cluster.
-Stops all explorers as soon as one confirms finding the target.
-Returns the coordinates of the found target, or a list of 'not found' results if no target was located.
-
-Args:
-  tasks: list of task strings, one per cluster, e.g.:
-    ['Search cluster A: tall blocks at (1,1),(1,2),(2,1). Transporter drop point: (2,1). Budget: 80pts.',
-     'Search cluster B: tall blocks at (8,8),(9,8). Transporter drop point: (8,8). Budget: 80pts.']
-
-Returns:
-  dict with keys:
-    found (bool): whether the target was located
-    coordinates (str | None): grid coordinates if found, e.g. 'F6'
-    explorer_id (int | None): which explorer found the target
-    results (list[dict]): all explorer reports
+Specialized **Explorer** sub‑agent for the Domatowo task.  
+Given a detailed cluster assignment (tall block coordinates, transporter drop point, local budget), it plans and executes low‑level Domatowo API actions using `send_action` to search for the human target within its cluster.  
+It never finalizes the mission and never calls global actions like `done` or `callHelicopter`.  
+Its final reply is always a simple text verdict in the form `FOUND <COORDS>` or `NOTFOUND`, optionally followed by a short justification.

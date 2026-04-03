@@ -68,6 +68,52 @@ class SendActionInput(BaseModel):
         )
     )
 
+
+class SubmitAnswerInput(BaseModel):
+    """
+    Input schema for the submit_answer tool.
+
+    This model is used for simple central actions that consist of:
+    - a required action name,
+    - an optional destination field.
+
+    It is suitable for actions such as:
+    - "done"
+    - "help"
+    - "callHelicopter" (requires destination)
+    """
+
+    action: str = Field(
+        description=(
+            "Central action name, for example 'done', 'help', or 'callHelicopter'."
+        )
+    )
+    destination: str | None = Field(
+        default=None,
+        description=(
+            "Optional destination coordinate, e.g. 'F6'. "
+            "Required when action is 'callHelicopter'."
+        )
+    )
+
+    @model_validator(mode="after")
+    def validate_action_payload(self) -> "SubmitAnswerInput":
+        """
+        Validate action-specific payload constraints.
+
+        Rules:
+        - 'callHelicopter' requires destination
+        - other actions should not include destination
+        """
+        if self.action == "callHelicopter" and not self.destination:
+            raise ValueError("destination is required when action='callHelicopter'")
+
+        if self.action != "callHelicopter" and self.destination is not None:
+            raise ValueError(
+                "destination should only be provided when action='callHelicopter'"
+            )
+
+        return self
     
 class AnalyzeMapInput(BaseModel):
     """
