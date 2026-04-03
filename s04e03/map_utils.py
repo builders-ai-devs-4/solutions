@@ -432,8 +432,3 @@ def analyze_map_payload(raw_map: Any) -> Dict[str, Any]:
         "clusters": clusters,
     }
     
-from pydantic import BaseModel
-from map_utils import analyze_map_payload
-
-class AnalyzeMapInput(BaseModel):
-    raw_map: str

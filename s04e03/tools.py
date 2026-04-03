@@ -20,49 +20,39 @@ _POLL_INTERVAL_SECONDS = 2
 
 from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
-from modules.models import CallHelicopterInput, SubmitAnswerInput
+from modules.models import AnalyzeMapInput, CallHelicopterInput, SubmitAnswerInput
 
 from map_utils import (
-    AnalyzeMapInput,
     analyze_map_payload,
-    parse_map,
-    extract_tall_blocks,
-    greedy_cluster,
-    centroid,
-    coords_to_grid,
-)
-
+   )
 
 @tool("submit_answer", args_schema=SubmitAnswerInput)
 def submit_answer(action: str, destination: str | None = None) -> str:
     """
-    Submits an action to the central API via _post_to_central.
+    Submit a simple action to the central API via _post_to_central.
 
-    Use this tool to send any action to the game API, including finalizing
-    the mission ('done'), calling the rescue helicopter ('callHelicopter'),
-    or any other supported action discovered via 'get_help'.
+    This tool is a thin convenience wrapper over the generic central request path.
+    It should be used for actions that fit the payload shape:
+    {"action": <action_name>}
+    or:
+    {"action": "callHelicopter", "destination": <grid_coordinate>}
 
-    For 'callHelicopter', the destination field is required — it must contain
-    the grid coordinates where a scout has confirmed the target's presence.
-    For all other actions, destination should be omitted.
+    Supported usage examples include:
+    - finalizing the mission with action="done"
+    - retrieving central help with action="help"
+    - calling the rescue helicopter with action="callHelicopter" and destination="F6"
 
     Args:
-        action: Action name to perform, e.g. 'done', 'help', 'callHelicopter'.
-        destination: Grid coordinates for helicopter landing zone, e.g. 'F6'.
-                     Required only when action is 'callHelicopter', None otherwise.
+        action: Central action name.
+        destination: Optional grid coordinate used only for helicopter dispatch.
 
     Returns:
-        Raw response string from the central API.
-
-    Example:
-        >>> submit_answer(action="callHelicopter", destination="F6")
-        >>> submit_answer(action="done")
+        Raw response string returned by the central API.
     """
     payload = {"action": action}
-    if destination:
+    if destination is not None:
         payload["destination"] = destination
     return _post_to_central(payload)
-
 
 @tool("call_helicopter", args_schema=CallHelicopterInput)
 def call_helicopter(destination: str) -> str:
