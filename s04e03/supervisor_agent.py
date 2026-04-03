@@ -34,6 +34,7 @@ SUPERVISOR_CONFIG = {
 supervisor_model = ChatOpenRouter(
     model="openai/gpt-4o",
     temperature=0,
+    model_kwargs={"parallel_tool_calls": False},
 )
 
 
