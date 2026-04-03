@@ -26,33 +26,53 @@ from map_utils import (
     analyze_map_payload,
    )
 
-@tool("submit_answer", args_schema=SubmitAnswerInput)
-def submit_answer(action: str, destination: str | None = None) -> str:
+@tool(args_schema=SendActionInput)
+def send_action(
+    action: str,
+    type: str | None = None,
+    passengers: int | None = None,
+    object: str | None = None,
+    where: str | None = None,
+    symbol: str | None = None,
+    destination: str | None = None,
+    symbols: list[str] | None = None,
+) -> str:
     """
-    Submit a simple action to the central API via _post_to_central.
+    Send a single Domatowo API action to the central server and return the raw response.
 
-    This tool is a thin convenience wrapper over the generic central request path.
-    It should be used for actions that fit the payload shape:
-    {"action": <action_name>}
-    or:
-    {"action": "callHelicopter", "destination": <grid_coordinate>}
-
-    Supported usage examples include:
-    - finalizing the mission with action="done"
-    - retrieving central help with action="help"
-    - calling the rescue helicopter with action="callHelicopter" and destination="F6"
-
-    Args:
-        action: Central action name.
-        destination: Optional grid coordinate used only for helicopter dispatch.
-
-    Returns:
-        Raw response string returned by the central API.
+    This is the generic gateway for all gameplay actions:
+    - getMap
+    - create
+    - move
+    - inspect
+    - dismount
+    - getObjects
+    - getLogs
+    - searchSymbol
+    - expenses
+    - actionCost
+    - callHelicopter
+    and others listed in the help output.
     """
-    payload = {"action": action}
+    payload: Dict[str, Any] = {"action": action}
+    if type is not None:
+        payload["type"] = type
+    if passengers is not None:
+        payload["passengers"] = passengers
+    if object is not None:
+        payload["object"] = object
+    if where is not None:
+        payload["where"] = where
+    if symbol is not None:
+        payload["symbol"] = symbol
     if destination is not None:
         payload["destination"] = destination
-    return _post_to_central(payload)
+    if symbols is not None:
+        payload["symbols"] = symbols
+
+    content = _post_to_central(payload)
+    agent_logger.info(f"[send_action] payload={payload} | response={content[:200]}")
+    return content
 
 @tool("call_helicopter", args_schema=CallHelicopterInput)
 def call_helicopter(destination: str) -> str:

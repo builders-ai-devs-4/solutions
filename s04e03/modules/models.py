@@ -23,52 +23,51 @@ class CallHelicopterInput(BaseModel):
     destination: str
     
 
-
-class SubmitAnswerInput(BaseModel):
+class SendActionInput(BaseModel):
     """
-    Input schema for the submit_answer tool.
+    Input schema for the send_action tool.
 
-    This model is used for simple central actions that consist of:
-    - a required action name,
-    - an optional destination field.
-
-    It is suitable for actions such as:
-    - "done"
-    - "help"
-    - "callHelicopter" (requires destination)
+    This model carries a single Domatowo API action payload, for example:
+    {"action": "getMap"} or
+    {"action": "create", "type": "transporter", "passengers": 2}.
     """
 
     action: str = Field(
-        description=(
-            "Central action name, for example 'done', 'help', or 'callHelicopter'."
-        )
+        description="Domatowo API action name, e.g. 'getMap', 'create', 'move', 'inspect'."
+    )
+    # optional, action-specific fields:
+    type: str | None = Field(
+        default=None,
+        description="Action-specific type, e.g. 'transporter' or 'scout' for 'create'."
+    )
+    passengers: int | None = Field(
+        default=None,
+        description="Number of passengers for transporter creation or dismount (1-4)."
+    )
+    object: str | None = Field(
+        default=None,
+        description="Object identifier (hash) for actions like 'move', 'inspect', 'dismount'."
+    )
+    where: str | None = Field(
+        default=None,
+        description="Destination field (A1..K11) for 'move'."
+    )
+    symbol: str | None = Field(
+        default=None,
+        description="2-character symbol for 'searchSymbol'."
     )
     destination: str | None = Field(
         default=None,
+        description="Destination field (A1..K11) for 'callHelicopter'."
+    )
+    symbols: list[str] | None = Field(
+        default=None,
         description=(
-            "Optional destination coordinate, e.g. 'F6'. "
-            "Required when action is 'callHelicopter'."
+            "Optional list of symbols/coordinates for 'getMap', "
+            "e.g. ['KS', 'SZ', 'B3', 'C4']."
         )
     )
 
-    @model_validator(mode="after")
-    def validate_action_payload(self) -> "SubmitAnswerInput":
-        """
-        Validate action-specific payload constraints.
-
-        Rules:
-        - 'callHelicopter' requires destination
-        - other actions should not include destination
-        """
-        if self.action == "callHelicopter" and not self.destination:
-            raise ValueError("destination is required when action='callHelicopter'")
-
-        if self.action != "callHelicopter" and self.destination is not None:
-            raise ValueError(
-                "destination should only be provided when action='callHelicopter'"
-            )
-
-        return self
     
 class AnalyzeMapInput(BaseModel):
     """
