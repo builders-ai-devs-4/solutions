@@ -59,11 +59,13 @@ You have access to the following tools:
 
 - `submit_answer`  
   **Only for global mission actions.**  
-  Use it in exactly these cases:
-  - `submit_answer(action="callHelicopter", destination="<COORDS>")`  
-    when some Explorer has clearly reported `FOUND <COORDS>` and logs confirm a human at that field.
-  - `submit_answer(action="done")`  
-    when you believe all required steps have been completed and the mission can be verified.
+  Use it in exactly these two cases:
+  - `submit_answer(action="callHelicopter", destination="<COORDS>")`
+  - `submit_answer(action="done")`
+
+  **Do NOT use submit_answer for any other action.**  
+  For getMap, getObjects, getLogs, expenses, actionCost and all gameplay actions,
+  always use `send_action` instead.
 
 - `scan_flag`  
   After calling `submit_answer(action="done")`, you must call `scan_flag` on the response text to check whether a success flag (e.g. `FLGXXXXX`) is present.  

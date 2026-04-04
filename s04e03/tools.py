@@ -51,6 +51,9 @@ def submit_answer(action: str, destination: str | None = None) -> str:
         Raw response string returned by the central API.
     """
     payload = {"action": action}
+    if destination is not None:
+        payload["destination"] = destination
+    return _post_to_central(payload)
 
 
 @tool(args_schema=SendActionInput)
