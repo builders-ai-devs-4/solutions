@@ -26,7 +26,7 @@ from libs.loggers import agent_logger
 from libs.central_client import _post_to_central, _scan_flag_in_response
 from database_sqlite_fts import Database
 from modules.normalizer import ValidationError, _strip_pl, validate_artifacts
-
+import modules.help as help_module
 
 @tool
 def normalize_city(raw: str) -> str:
@@ -53,6 +53,7 @@ def normalize_item(raw: str) -> str:
 @tool
 def get_announcements_doc() -> str:
     """Fetch full source_text of the announcements document from the SQLite DB."""
+    agent_logger.info(f"[get_announcements_doc] fetching announcements document from DB {DB_PATH}")
     with Database(DB_PATH) as db:
         rows = db.query(
             "SELECT source_text FROM documents WHERE doc_type = \'announcements\' LIMIT 1"
@@ -67,6 +68,7 @@ def get_all_transactions() -> str:
     Fetch every row from the transactions table.
     Returns JSON array of {from_city, item, to_city} objects.
     """
+    agent_logger.info(f"[get_all_transactions] fetching all transactions from DB {DB_PATH}")
     with Database(DB_PATH) as db:
         rows = db.query("SELECT from_city, item, to_city FROM transactions")
     return json.dumps(rows, ensure_ascii=False)
@@ -75,6 +77,7 @@ def get_all_transactions() -> str:
 @tool
 def get_notes_doc() -> str:
     """Fetch full source_text of the conversation notes document from the SQLite DB."""
+    agent_logger.info(f"[get_notes_doc] fetching notes document from DB {DB_PATH}")
     with Database(DB_PATH) as db:
         rows = db.query(
             "SELECT source_text FROM documents WHERE doc_type = \'notes\' LIMIT 1"
@@ -128,22 +131,18 @@ def fs_send(action: str) -> str:
     agent_logger.info(f"[fs_send] result={result}")
     return result
 
-
 @tool
 def get_help_cache() -> str:
     """
-    Return cached filesystem API help without calling the API again.
-    Reads first from in-memory cache, then from local file cache.
-    Returns an error string if cache does not exist yet.
+    Return cached filesystem API help from memory.
+    Does NOT call the API. Uses help_module._help_cache.
     """
-    global _help_cache
+    if help_module._help_cache is None:
+        agent_logger.warning("[get_help_cache] cache is empty — get_help() was not called earlier")
+        return "ERROR: help cache is empty. get_help() must be called in task bootstrap."
 
-    if _help_cache is not None:
-        agent_logger.info("[get_help_cache] returning in-memory cache")
-        return _help_cache
-
-    agent_logger.warning("[get_help_cache] cache is empty — get_help() was not called yet")
-    return "ERROR: help cache is empty. Call get_help() earlier in task bootstrap."
+    agent_logger.info("[get_help_cache] returning in-memory cache")
+    return help_module._help_cache
 
 @tool
 def scan_flag(text: str) -> Optional[str]:

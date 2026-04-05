@@ -359,12 +359,13 @@ class Database:
         """
         Infer logical document type from filename and extension.
         """
+
         name = path.name.lower()
         if 'readme' in name:
             return 'readme'
         if 'rozmow' in name:
             return 'notes'
-        if 'ogloszen' in name:
+        if 'ogloszen' in name or 'ogłoszen' in name:
             return 'announcements'
         if 'transakc' in name:
             return 'transactions'
@@ -373,6 +374,7 @@ class Database:
         if path.suffix.lower() == '.json':
             return 'json'
         return 'text'
+
 
     def _extract_markdown_title(self, text: str, fallback: str) -> str:
         """

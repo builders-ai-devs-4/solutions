@@ -153,7 +153,7 @@ def run_explorer_cities_tool() -> str:
     Run the ExplorerMiasta sub-agent to extract city demand data from announcements.
     Returns extracted data as JSON string: {"CityName": {"item": quantity, ...}, ...}
     """
-    data = explorer_cities.run()
+    data = run_explorer_cities()
     agent_logger.info(f"[supervisor] explorer_cities returned {list(data.keys())}")
     return json.dumps(data, ensure_ascii=False)
 
@@ -164,7 +164,7 @@ def run_explorer_persons_tool() -> str:
     Run the ExplorerOsoby sub-agent to extract person→city assignments from conversation notes.
     Returns extracted data as JSON string: {"Full Name": "CityName", ...}
     """
-    data = explorer_persons.run()
+    data = run_explorer_persons()
     agent_logger.info(f"[supervisor] explorer_persons returned {list(data.keys())}")
     return json.dumps(data, ensure_ascii=False)
 
@@ -175,6 +175,6 @@ def run_explorer_goods_tool() -> str:
     Run the ExplorerTowary sub-agent to extract goods→source cities from transactions.
     Returns extracted data as JSON string: {"item": ["City1", "City2"], ...}
     """
-    data = explorer_goods.run()
+    data = run_explorer_goods()
     agent_logger.info(f"[supervisor] explorer_goods returned {list(data.keys())}")
     return json.dumps(data, ensure_ascii=False)

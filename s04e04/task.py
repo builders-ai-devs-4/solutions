@@ -75,30 +75,21 @@ if __name__ == "__main__":
         extracted_dir_path.mkdir(parents=True, exist_ok=True)
         extract_zip(zip_file_path, extracted_dir_path)
         agent_logger.info(f"[task] Extracting {zip_file_path} to {extracted_dir_path}")
-        result, payload = get_help()
-        agent_logger.info(f"[task] help={result}")
+
         with Database(db_path) as db:
             agent_logger.info("Loading documents directory")
-            db.load_documents_dir(extracted_dir_path)
-
-            # agent_logger.info("Searching documents for: Brudzewo AND woda")
-            # hits = db.search_documents("Brudzewo AND woda", limit=5)
-
-            # agent_logger.info("Fetching document by id: 1")
-            # doc = db.get_document(1)
-            # doc = db.get_document(hits[0]['id'])
-            # agent_logger.info(f"Document content: {doc['content']}")
-            
+            db.load_documents_dir(extracted_dir_path)          
 
 
         agent_logger.info(f"[task] DB created at {db_path}")
         
-    
-        result = supervisor.invoke(
-            {"messages": [{"role": "user", "content": supervisor_user}]},
-            config=SUPERVISOR_CONFIG,
-        )
-        agent_logger.info(f"[task] {result['messages'][-1].content}")
+    result, payload = get_help()
+    agent_logger.info(f"[task] help={result}")
+    result = supervisor.invoke(
+        {"messages": [{"role": "user", "content": supervisor_user}]},
+        config=SUPERVISOR_CONFIG,
+    )
+    agent_logger.info(f"[task] {result['messages'][-1].content}")
     
     
   
