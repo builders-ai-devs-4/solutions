@@ -1,10 +1,11 @@
+import json
 import os
 import sys
 from unittest import result
 from dotenv import load_dotenv
 from string import Template
 
-# from database import SensorDatabase, run_validation
+from langfuse import Langfuse
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.generic_helpers import extract_zip, get_filename_from_url, get_path_from_url, save_file
@@ -37,48 +38,67 @@ os.environ["DB_DIR_PATH"] = str(db_dir_path)
 db_dir_path.mkdir(parents=True, exist_ok=True)
 db_path = db_dir_path / "natan_notes.db"
 os.environ["DB_PATH"] = str(db_path)
-# CHUNK_SIZE = 200
-# os.environ["CHUNK_SIZE"] = str(CHUNK_SIZE)
 
-# from seeker_agent import SEEKER_CONFIG, seeker
+
+# Singleton initialization of Langfuse (only once, at startup)
+# This ensures that all agents and tools share the same Langfuse instance and configuration.
+
+Langfuse(
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+)
+
+from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 from libs.loggers import LoggerCallbackHandler, agent_logger
+from database_sqlite_fts import Database
+from modules.help import get_help
 
-# seeker_user_template = (
-#     Path(parent_folder_path) / "prompts" / "seeker_user.md"
-# ).read_text(encoding="utf-8")
+supervisor_user_template = (
+    Path(parent_folder_path) / "prompts" / "supervisor_user.md"
+).read_text(encoding="utf-8")
 
-# seeker_user = Template(seeker_user_template).substitute(
-#     DB_PATH=str(db_path),
-# )
+supervisor_user = Template(supervisor_user_template).substitute(
+    DB_PATH=str(db_path),
+)
 
 if __name__ == "__main__":
     
     agent_logger.info(f"[task] Starting task: {TASK_NAME}")
     
-
-    
-    # if not db_path.exists():
+    if not db_path.exists():
         
-    filename_from_url = get_filename_from_url(NATAN_NOTES_ZIP_URL)
-    agent_logger.info(f"[task] Downloading sensors data from {NATAN_NOTES_ZIP_URL} to {natan_notes_dir_path}")
-    natan_notes_dir_path.mkdir(parents=True, exist_ok=True)
-    zip_file_path = save_file(NATAN_NOTES_ZIP_URL, natan_notes_dir_path, override=True)
-    extracted_dir_path = natan_notes_dir_path / 'extracted'
-    extracted_dir_path.mkdir(parents=True, exist_ok=True)
-    extract_zip(zip_file_path, extracted_dir_path)
-    agent_logger.info(f"[task] Extracting {zip_file_path} to {extracted_dir_path}")
+        filename_from_url = get_filename_from_url(NATAN_NOTES_ZIP_URL)
+        agent_logger.info(f"[task] Downloading sensors data from {NATAN_NOTES_ZIP_URL} to {natan_notes_dir_path}")
+        natan_notes_dir_path.mkdir(parents=True, exist_ok=True)
+        zip_file_path = save_file(NATAN_NOTES_ZIP_URL, natan_notes_dir_path, override=True)
+        extracted_dir_path = natan_notes_dir_path / 'extracted'
+        extracted_dir_path.mkdir(parents=True, exist_ok=True)
+        extract_zip(zip_file_path, extracted_dir_path)
+        agent_logger.info(f"[task] Extracting {zip_file_path} to {extracted_dir_path}")
+        result, payload = get_help()
+        agent_logger.info(f"[task] help={result}")
+        with Database(db_path) as db:
+            agent_logger.info("Loading documents directory")
+            db.load_documents_dir(extracted_dir_path)
 
-        # with SensorDatabase(db_path) as db:
-        #     db.insert_data(extracted_dir_path)
+            # agent_logger.info("Searching documents for: Brudzewo AND woda")
+            # hits = db.search_documents("Brudzewo AND woda", limit=5)
 
-        # agent_logger.info(f"[task] DB created at {db_path}")
+            # agent_logger.info("Fetching document by id: 1")
+            # doc = db.get_document(1)
+            # doc = db.get_document(hits[0]['id'])
+            # agent_logger.info(f"Document content: {doc['content']}")
+            
+
+
+        agent_logger.info(f"[task] DB created at {db_path}")
         
     
-    # result = seeker.invoke(
-    #     {"messages": [{"role": "user", "content": seeker_user}]},
-    #     config=SEEKER_CONFIG,
-    # )
-    # agent_logger.info(f"[task] {result['messages'][-1].content}")
+        result = supervisor.invoke(
+            {"messages": [{"role": "user", "content": supervisor_user}]},
+            config=SUPERVISOR_CONFIG,
+        )
+        agent_logger.info(f"[task] {result['messages'][-1].content}")
     
     
   
