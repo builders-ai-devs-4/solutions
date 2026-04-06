@@ -18,18 +18,21 @@ from libs.loggers import LoggerCallbackHandler, agent_logger
 
 _help_cache: str | None = None
 
-def get_help() -> tuple[str, dict]:
+def get_help(answer: str | None = None) -> tuple[str, dict]:
     """
     Retrieve the full API documentation for the domatowo task.
     Call this first to learn all available actions and their required parameters.
     Returns documentation directly.
     """
+    if answer is  None:
+        answer = {"action": "help"}
+        
     global _help_cache
     if _help_cache is not None:
         agent_logger.warning("[get_help] returning cached result — API not called again")
         return _help_cache
     
-    result, payload  = _post_to_central({"action": "help"})
+    result, payload  = _post_to_central(answer)
     _help_cache = result
     agent_logger.info(f"[get_help] returning help result={result}")
     

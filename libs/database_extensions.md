@@ -30,6 +30,35 @@ from pathlib import Path
 db.load_csv_file("users", Path("data/users.csv"), replace=True)
 ```
 
+## JSON string loading
+
+### `load_json_string(table_name: str, json_string: str, replace: bool = False) -> int`
+Loads a JSON string into a table.
+
+**Purpose**
+Useful when JSON comes directly from an API response, message queue, cache entry, or any in-memory text source instead of a file. The input may be a single JSON object or an array of objects.
+
+**Example**
+```python
+payload = '{"id": 1, "status": "ok"}'
+db.load_json_string("runtime.status", payload, replace=True)
+```
+
+### `load_json_strings_single_table(table_name: str, json_strings: list[str], replace: bool = False) -> int`
+Loads multiple JSON strings into one table.
+
+**Purpose**
+Useful when several API responses should be combined into a single table, as long as they have a compatible structure. Each string may contain one object or an array of objects.
+
+**Example**
+```python
+responses = [
+    '{"id": 1, "name": "Alice"}',
+    '{"id": 2, "name": "Bob"}',
+]
+db.load_json_strings_single_table("runtime.people", responses, replace=True)
+```
+
 ## Schema management
 
 ### `create_schema(schema_name: str) -> None`

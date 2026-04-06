@@ -9,7 +9,7 @@ from langfuse import Langfuse
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from libs.database import Database
-from libs.generic_helpers import extract_zip, get_filename_from_url, get_path_from_url, save_file
+from libs.generic_helpers import get_filename_from_url, save_file
 
 from pathlib import Path
 import requests
@@ -50,22 +50,22 @@ Langfuse(
     secret_key=os.environ["LANGFUSE_SECRET_KEY"],
 )
 
-from supervisor_agent import SUPERVISOR_CONFIG, supervisor
+# from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from modules.help import get_help
 
-supervisor_user_template = (
-    Path(parent_folder_path) / "prompts" / "supervisor_user.md"
-).read_text(encoding="utf-8")
+# supervisor_user_template = (
+#     Path(parent_folder_path) / "prompts" / "supervisor_user.md"
+# ).read_text(encoding="utf-8")
 
-supervisor_user = Template(supervisor_user_template).substitute(
-    DB_PATH=str(db_path),
-)
+# supervisor_user = Template(supervisor_user_template).substitute(
+#     DB_PATH=str(db_path),
+# )
 
 if __name__ == "__main__":
-    
+   
     agent_logger.info(f"[{MODULE_NAME}] Starting task: {TASK_NAME}")
-    result, payload = get_help()
+    result, payload = get_help({"tool": "help"})
     agent_logger.info(f"[{MODULE_NAME}] help={result}")
     
     if not db_path.exists():
@@ -73,11 +73,12 @@ if __name__ == "__main__":
         filename_from_url = get_filename_from_url(FOOD_4_CITIES_URL)
         agent_logger.info(f"[{MODULE_NAME}] Downloading food4cities data from {FOOD_4_CITIES_URL} to {food_4_cities_dir_path}")
         food_4_cities_dir_path.mkdir(parents=True, exist_ok=True)
-
+        food4cities_file_path = save_file(FOOD_4_CITIES_URL, food_4_cities_dir_path, override=True)
 
         with Database(db_path) as db:
             agent_logger.info(f"[{MODULE_NAME}] Loading documents directory")
-            db.load_documents_dir(food_4_cities_dir_path)          
+            db.load_json_dir_multi_table(food_4_cities_dir_path)
+            db.load_json_string('get_help', result)           
 
 
         agent_logger.info(f"[{MODULE_NAME}] DB created at {db_path}")

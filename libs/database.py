@@ -67,6 +67,52 @@ class Database:
         """)
         return self._count(table_name)
 
+    def load_json_string(self, table_name: str, json_string: str, replace: bool = False) -> int:
+        """
+        Load a JSON string into a table.
+
+        The input may be either a single JSON object or a JSON array of
+        objects. This is useful when data comes directly from an API response
+        or any in-memory text source instead of a file.
+        """
+        table_name = self.quote_identifier(table_name)
+        create_clause = "CREATE OR REPLACE TABLE" if replace else "CREATE TABLE IF NOT EXISTS"
+        escaped_json = json_string.replace("'", "''")
+        self.conn.sql(f"""
+        {create_clause} {table_name} AS
+        SELECT *
+        FROM read_json_auto('{escaped_json}', format='auto')
+        """)
+        return self._count(table_name)
+
+    def load_json_strings_single_table(
+        self,
+        table_name: str,
+        json_strings: list[str],
+        replace: bool = False,
+    ) -> int:
+        """
+        Load multiple JSON strings into one table.
+
+        Each string may contain either a single JSON object or a JSON array of
+        objects. All parsed rows are appended into one shared table, which is
+        useful for combining multiple API responses with a compatible schema.
+        """
+        if not json_strings:
+            raise ValueError("json_strings must not be empty")
+
+        parsed_records: list[dict[str, Any]] = []
+        for payload in json_strings:
+            parsed = json.loads(payload)
+            if isinstance(parsed, list):
+                parsed_records.extend(parsed)
+            elif isinstance(parsed, dict):
+                parsed_records.append(parsed)
+            else:
+                raise ValueError("each JSON string must contain an object or an array of objects")
+
+        return self.create_table_from_records(table_name, parsed_records, replace=replace)
+
     # ── CSV ───────────────────────────────────────────────────────────────────
 
     def load_csv_dir_single_table(self, table_name: str, directory: Path) -> int:
