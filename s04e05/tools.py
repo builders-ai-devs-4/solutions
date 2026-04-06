@@ -1,16 +1,15 @@
-
-
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-import requests
 from langchain_core.tools import tool
 
+from libs.central_client import _post_to_central, _scan_flag_in_response
+from libs.loggers import agent_logger
 from libs.database import Database
 
-# ── Constants ──────────────────────────────────────────────────────────────
+# ── Constants ─────────────────────────────────────────────────────────────
 _RECURSION_LIMIT = 50
 
 AI_DEVS_SECRET = os.environ["AI_DEVS_SECRET"]
@@ -22,17 +21,18 @@ TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
 DB_PATH = Path(os.environ["DB_PATH"])
 DB_RUNTIME_PATH = Path(os.environ["DB_RUNTIME_PATH"])
 
-# ── DB singleton ───────────────────────────────────────────────────────────
-
+# ── DB singletons ─────────────────────────────────────────────────────────
 
 _static_db: Database | None = None
 _runtime_db: Database | None = None
+
 
 def get_static_db() -> Database:
     global _static_db
     if _static_db is None:
         _static_db = Database(DB_PATH)
     return _static_db
+
 
 def get_runtime_db() -> Database:
     global _runtime_db
@@ -41,354 +41,315 @@ def get_runtime_db() -> Database:
     return _runtime_db
 
 
-# ── Internal API helper ────────────────────────────────────────────────────
-def _call(answer: dict[str, Any]) -> dict[str, Any]:
-    resp = requests.post(
-        SOLUTION_URL,
-        json={"apikey": AI_DEVS_SECRET, "task": TASK_NAME, "answer": answer},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 1 - LOCAL DUCKDB
-#  Used by: Recon, Demand, Mapping, Identity, Planner, Executor, Auditor
+# GROUP 1 — LOCAL DUCKDB (static, read-only)
+# Used by: Recon, Demand, Mapping, Identity, Planner
 # ══════════════════════════════════════════════════════════════════════════
+
 
 @tool
-def db_query(sql: str) -> str:
-    """Execute any SELECT query on the local DuckDB database and return results as JSON.
+def static_db_query(sql: str) -> str:
+    """Execute a SELECT query on the local static DuckDB database and return results as JSON.
 
-    Available schemas:
-    - main.*        - static tables loaded at bootstrap: 'help', 'food4cities'
-    - runtime.*     - tables written by agents during this run
+    This database is read-only — it contains tables loaded at bootstrap:
+      - 'food4cities'  — demand per city (city, item, quantity)
+      - 'get_help'     — raw API help text stored as single JSON column 'data'
 
-    Use DESCRIBE <table> or SELECT * FROM information_schema.tables
-    to inspect structure when needed.
+    Use DESCRIBE <table> to inspect columns.
+    Use SHOW TABLES to list available tables.
+    Always use SELECT — never INSERT, UPDATE, DROP or DDL.
 
-    Returns: JSON array of row dicts, or {"error": "..."}.
+    Returns: JSON array of row objects, or an error message string.
     """
     try:
-        rows = get_runtime_db().query(sql)
-        return json.dumps(rows, ensure_ascii=False, default=str)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        db = get_static_db()
+        rows = db.query(sql)
+        return json.dumps(rows, ensure_ascii=False)
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# GROUP 2 — LOCAL DUCKDB (runtime, read + write)
+# Used by: Recon, Demand, Mapping, Identity, Planner, Executor, Auditor
+# ══════════════════════════════════════════════════════════════════════════
 
 
 @tool
-def db_store_json(table_name: str, payload: str, replace: bool = False) -> str:
-    """Persist a JSON string as a structured table in the local DuckDB runtime schema.
+def runtime_db_query(sql: str) -> str:
+    """Execute a SELECT query on the local runtime DuckDB database and return results as JSON.
 
-    Accepts a JSON object or a JSON array of objects.
-    Array → multiple rows (one per element).
-    Single object → one row.
+    This database is the agent workspace — tables are created and populated during the run.
+    Common tables written by agents:
+      - city_demand          — normalized demand per city and item
+      - destination_map      — city → destination code mapping
+      - identity_map         — city → creatorID + signature mapping
+      - order_plan           — finalized plan: one row per city with all order fields
+      - order_plan_items     — individual items per planned order
+      - execution_log        — API responses from orders.create / orders.append
+      - audit_report         — comparison of planned vs actual order state
 
-    Args:
-        table_name: fully-qualified name, use 'runtime.<name>' prefix
-                    e.g. 'runtime.city_demand', 'runtime.order_plan'
-        payload:    valid JSON string
-        replace:    True  → recreate table even if it already exists
-                    False → skip silently if table already exists
+    Use DESCRIBE <table> to inspect columns.
+    Use SHOW TABLES to list available tables.
 
-    Returns: {"table": ..., "rows": N, "status": "ok"} or {"error": "..."}.
+    Returns: JSON array of row objects, or an error message string.
     """
     try:
         db = get_runtime_db()
-        parsed: Any = json.loads(payload)
-        records: list[dict] = parsed if isinstance(parsed, list) else [parsed]
-        if not records:
-            return json.dumps({"error": "payload resolved to empty list"})
+        rows = db.query(sql)
+        return json.dumps(rows, ensure_ascii=False)
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+@tool
+def runtime_db_store_records(table_name: str, records_json: str, replace: bool = False) -> str:
+    """Store a list of records into a runtime DuckDB table.
+
+    Args:
+        table_name:   Target table name (no schema prefix needed — always writes to runtime DB).
+                      Examples: 'city_demand', 'destination_map', 'order_plan', 'execution_log'
+        records_json: JSON array string of row objects. All objects must share the same keys.
+                      Example: '[{"city": "Warszawa", "item": "chleb", "qty": 100}]'
+        replace:      If True, drops and recreates the table. If False, creates only if not exists.
+
+    Returns: Confirmation string with row count, or an error message.
+    """
+    try:
+        db = get_runtime_db()
+        records: list[dict[str, Any]] = json.loads(records_json)
+        if not isinstance(records, list) or not records:
+            return "ERROR: records_json must be a non-empty JSON array"
         count = db.create_table_from_records(table_name, records, replace=replace)
-        return json.dumps({"table": table_name, "rows": count, "status": "ok"})
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        return f"OK: stored {count} rows into runtime table '{table_name}'"
+    except Exception as e:
+        return f"ERROR: {e}"
 
-
-# ══════════════════════════════════════════════════════════════════════════
-#  GROUP 2 - REMOTE SQLite  (read-only, via warehouse API)
-#  Used by: Recon, Mapping, Identity
-# ══════════════════════════════════════════════════════════════════════════
 
 @tool
-def api_database_query(sql: str) -> str:
-    """Execute a read-only SQL query against the remote SQLite database.
+def runtime_db_append_records(table_name: str, records_json: str) -> str:
+    """Append rows to an existing runtime DuckDB table.
 
-    Supported queries:
-    - 'show tables'              - list available tables
-    - 'SELECT * FROM <table>'    - read rows
-    - 'PRAGMA table_info(<t>)'   - column names and types (SQLite syntax)
+    Use this when the table already exists and you want to add more rows without replacing it.
+    All records must match the existing table schema.
 
-    Use to discover destination codes, creator identities, and
-    any data needed to build the order signature.
+    Args:
+        table_name:   Existing runtime table name. Example: 'execution_log'
+        records_json: JSON array string of row objects matching table schema.
 
-    Returns: raw API JSON response as string, or {"error": "..."}.
+    Returns: Confirmation string with inserted row count, or an error message.
     """
     try:
-        result = _call({"tool": "database", "query": sql})
-        return json.dumps(result, ensure_ascii=False, default=str)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        db = get_runtime_db()
+        records: list[dict[str, Any]] = json.loads(records_json)
+        if not isinstance(records, list) or not records:
+            return "ERROR: records_json must be a non-empty JSON array"
+        count = db.append_records(table_name, records)
+        return f"OK: appended {count} rows to runtime table '{table_name}'"
+    except Exception as e:
+        return f"ERROR: {e}"
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 3 - SIGNATURE
-#  Used by: Identity
+# GROUP 3 — REMOTE SQLITE (read-only via API)
+# Used by: Recon, Mapping, Identity
 # ══════════════════════════════════════════════════════════════════════════
+
 
 @tool
-def api_signature_generate(payload: str) -> str:
-    """Generate a SHA1 security signature using the warehouse signatureGenerator API.
+def api_database_query(query: str) -> str:
+    """Execute a SELECT query or 'show tables' against the remote read-only SQLite database via API.
 
-    The payload must contain the user/creator fields extracted from the SQLite
-    database.  Pass them as a JSON object string, e.g.:
-        '{"userID": 3, "username": "jan", "email": "jan@example.com"}'
+    Use this to discover the database schema and read authorization data needed to build orders.
+    Allowed operations: 'show tables', SELECT queries only.
 
-    The exact fields required are determined by exploring the SQLite schema first.
+    Examples:
+        api_database_query("show tables")
+        api_database_query("SELECT * FROM users LIMIT 5")
+        api_database_query("DESCRIBE employees")
 
-    Returns: API JSON response with the signature field, or {"error": "..."}.
+    Returns: API response as JSON string, or an error message.
     """
     try:
-        data: dict = json.loads(payload) if isinstance(payload, str) else payload
-        result = _call({"tool": "signatureGenerator", **data})
-        return json.dumps(result, ensure_ascii=False)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        result, _ = _post_to_central({"tool": "database", "query": query})
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 4 - ORDERS  (stateful - mutates warehouse)
-#  Used by: Executor (create, append); Auditor + Executor (get)
+# GROUP 4 — SIGNATURE GENERATOR
+# Used by: Identity
 # ══════════════════════════════════════════════════════════════════════════
+
+
+@tool
+def api_signature_generate(params_json: str) -> str:
+    """Generate a SHA1 security signature for an order via the signatureGenerator API.
+
+    The signature is built from user data stored in the remote SQLite database.
+    You must first identify the correct user (creatorID) and their relevant fields
+    from the database before calling this tool.
+
+    Args:
+        params_json: JSON object string with the fields required by signatureGenerator.
+                     Exact field names must be discovered from the API / database first.
+                     Example: '{"userID": 3}'
+
+    Returns: API response containing the generated signature string, or an error message.
+    """
+    try:
+        params: dict[str, Any] = json.loads(params_json)
+        payload = {"tool": "signatureGenerator", **params}
+        result, _ = _post_to_central(payload)
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# GROUP 5 — ORDERS API
+# Used by: Executor, Auditor
+# ══════════════════════════════════════════════════════════════════════════
+
 
 @tool
 def api_orders_get() -> str:
     """Retrieve the current list of all orders from the warehouse API.
 
-    Use to:
-    - inspect orders created so far during execution
-    - snapshot the live state for audit comparison
+    Use this to:
+      - inspect existing orders before creating new ones
+      - verify order state after create/append operations
+      - audit actual vs planned order content
 
-    Returns: API JSON response with orders list, or {"error": "..."}.
+    Returns: JSON string with all current orders, or an error message.
     """
     try:
-        result = _call({"tool": "orders", "action": "get"})
-        return json.dumps(result, ensure_ascii=False, default=str)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        result, _ = _post_to_central({"tool": "orders", "action": "get"})
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
 
 
 @tool
 def api_orders_create(title: str, creator_id: int, destination: str, signature: str) -> str:
-    """Create a single new order in the warehouse system.
+    """Create a new order in the warehouse API.
 
-    IMPORTANT: Only call this after all header fields are confirmed.
-    One separate order must be created per city - never combine cities.
+    Only call this after the full order plan has been validated in the runtime DB.
+    You must have: title, creatorID, destination code, and a valid signature.
 
     Args:
-        title:       human-readable order title, e.g. 'Dostawa dla Torunia'
-        creator_id:  integer ID of the creator from the SQLite users table
-        destination: destination code string from the SQLite cities/destinations table
-        signature:   SHA1 string returned by api_signature_generate
+        title:       Human-readable order title. Example: 'Dostawa dla Torunia'
+        creator_id:  Integer user ID from the SQLite database.
+        destination: Destination code string for the target city. Example: '1234'
+        signature:   SHA1 signature string from signatureGenerator.
 
-    Returns: API JSON response with the new order ID, or {"error": "..."}.
+    Returns: API response with the new order ID, or an error message.
     """
     try:
-        result = _call({
-            "tool":        "orders",
-            "action":      "create",
-            "title":       title,
-            "creatorID":   creator_id,
+        result, _ = _post_to_central({
+            "tool": "orders",
+            "action": "create",
+            "title": title,
+            "creatorID": creator_id,
             "destination": destination,
-            "signature":   signature,
+            "signature": signature,
         })
-        return json.dumps(result, ensure_ascii=False, default=str)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
 
 
 @tool
-def api_orders_append(order_id: str, items: str) -> str:
-    """Append items to an existing order using batch mode.
+def api_orders_append(order_id: str, items_json: str) -> str:
+    """Append items to an existing order in the warehouse API (batch mode).
 
-    Always use batch mode - send all items for the order in a single call.
-    If an item already exists in the order, its quantity will be increased.
+    Use this after api_orders_create to populate the order with required goods.
+    Supports batch mode — pass multiple items at once as a JSON object.
+
+    If an item already exists in the order, its quantity will be increased (no duplicate created).
 
     Args:
-        order_id: the order ID string returned by api_orders_create
-        items:    JSON object mapping item name → quantity (int)
-                  e.g. '{"chleb": 45, "woda": 120, "mlotek": 6}'
+        order_id:   Order ID returned by api_orders_create.
+        items_json: JSON object string mapping item names to quantities.
+                    Example: '{"chleb": 45, "woda": 120, "mlotek": 6}'
 
-    Returns: API JSON response, or {"error": "..."}.
+    Returns: API response confirming the append, or an error message.
     """
     try:
-        items_dict: dict = json.loads(items) if isinstance(items, str) else items
-        result = _call({
-            "tool":   "orders",
+        items: dict[str, int] = json.loads(items_json)
+        result, _ = _post_to_central({
+            "tool": "orders",
             "action": "append",
-            "id":     order_id,
-            "items":  items_dict,
+            "id": order_id,
+            "items": items,
         })
-        return json.dumps(result, ensure_ascii=False, default=str)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 5 - VALIDATION / AUDIT
-#  Used by: Planner (execution_ready); Auditor (compare); Supervisor (done)
+# GROUP 6 — CONTROL TOOLS
+# Used by: Supervisor, Auditor
 # ══════════════════════════════════════════════════════════════════════════
-
-@tool
-def validate_execution_ready() -> str:
-    """Check whether the order plan is complete and safe to execute.
-
-    Reads runtime.city_demand (all cities and their items) and
-    runtime.order_plan (planned orders).
-
-    Verifies:
-    - every city from city_demand has exactly one row in order_plan
-    - each plan row has: city, title, creator_id, destination, signature, items_json
-    - no required field is null or empty
-
-    Returns:
-        {"status": "ready",     "cities": N, "issues": []} on success
-        {"status": "not_ready", "cities": N, "issues": [...]} on failure
-    """
-    db = get_db()
-    issues: list[str] = []
-
-    try:
-        demand_rows = db.query("SELECT DISTINCT city FROM runtime.city_demand")
-        expected_cities = {r["city"] for r in demand_rows}
-    except Exception as exc:
-        return json.dumps({"status": "not_ready", "issues": [f"runtime.city_demand unavailable: {exc}"]})
-
-    try:
-        plan_rows = db.query("SELECT * FROM runtime.order_plan")
-    except Exception as exc:
-        return json.dumps({"status": "not_ready", "issues": [f"runtime.order_plan unavailable: {exc}"]})
-
-    plan_cities = {r["city"] for r in plan_rows}
-    missing = expected_cities - plan_cities
-    if missing:
-        issues.append(f"Cities missing from plan: {sorted(missing)}")
-
-    required = ["city", "title", "creator_id", "destination", "signature", "items_json"]
-    for row in plan_rows:
-        for field in required:
-            if not row.get(field):
-                issues.append(f"Null/empty '{field}' for city '{row.get('city', '?')}'")
-
-    status = "ready" if not issues else "not_ready"
-    return json.dumps({
-        "status":  status,
-        "cities":  len(expected_cities),
-        "planned": len(plan_rows),
-        "issues":  issues,
-    })
 
 
 @tool
-def compare_expected_vs_actual() -> str:
-    """Compare planned orders (runtime.order_plan) with live orders from the warehouse API.
+def api_reset() -> str:
+    """Reset all orders to the initial state via the warehouse API.
 
-    Checks:
-    - order count matches city count
-    - each city's order exists with the correct destination
-    - item names and quantities match exactly (no missing, no excess)
+    Use this when orders are in an inconsistent state and need to be rebuilt from scratch.
+    WARNING: This deletes all existing orders — use only after confirming with the Supervisor.
 
-    Returns:
-        {"status": "pass", "details": [...]} when everything matches
-        {"status": "fail", "issues": [...], "details": [...]} when mismatches found
+    Returns: API response confirming the reset, or an error message.
     """
-    db = get_db()
-    issues: list[str] = []
-
     try:
-        plan_rows = db.query("SELECT * FROM runtime.order_plan")
-    except Exception as exc:
-        return json.dumps({"status": "fail", "issues": [f"runtime.order_plan unavailable: {exc}"]})
+        result, _ = _post_to_central({"tool": "reset"})
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
 
-    try:
-        api_resp  = _call({"tool": "orders", "action": "get"})
-        # API may nest orders under a key - try common shapes
-        raw = api_resp
-        if isinstance(raw, dict):
-            actual_orders = raw.get("orders") or raw.get("message") or raw.get("data") or raw
-        if isinstance(actual_orders, str):
-            actual_orders = json.loads(actual_orders)
-        if not isinstance(actual_orders, list):
-            actual_orders = [actual_orders]
-    except Exception as exc:
-        return json.dumps({"status": "fail", "issues": [f"api_orders_get failed: {exc}"]})
-
-    if len(actual_orders) != len(plan_rows):
-        issues.append(
-            f"Order count mismatch: expected {len(plan_rows)}, actual {len(actual_orders)}"
-        )
-
-    actual_by_dest: dict[str, dict] = {
-        str(o.get("destination", o.get("dest", ""))): o
-        for o in actual_orders
-    }
-
-    details: list[dict] = []
-    for row in plan_rows:
-        city = row["city"]
-        dest = str(row.get("destination", ""))
-        actual = actual_by_dest.get(dest)
-
-        if actual is None:
-            issues.append(f"[{city}] No actual order for destination='{dest}'")
-            details.append({"city": city, "status": "missing_order"})
-            continue
-
-        expected_items: dict = json.loads(row.get("items_json") or "{}")
-        actual_items:   dict = {
-            i["name"]: int(i.get("quantity", i.get("qty", 0)))
-            for i in actual.get("items", [])
-        }
-
-        city_diffs: list[str] = []
-        for name, qty in expected_items.items():
-            got = actual_items.get(name, 0)
-            if got != qty:
-                city_diffs.append(f"{name}: expected {qty}, got {got}")
-        for name, qty in actual_items.items():
-            if name not in expected_items:
-                city_diffs.append(f"{name}: unexpected item (qty={qty})")
-
-        if city_diffs:
-            issues.extend(f"[{city}] {d}" for d in city_diffs)
-            details.append({"city": city, "status": "mismatch", "diffs": city_diffs})
-        else:
-            details.append({"city": city, "status": "ok"})
-
-    return json.dumps({
-        "status":  "pass" if not issues else "fail",
-        "issues":  issues,
-        "details": details,
-    }, ensure_ascii=False)
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  GROUP 6 - FINALIZATION
-#  Used by: Supervisor only
-# ══════════════════════════════════════════════════════════════════════════
 
 @tool
 def api_done() -> str:
-    """Submit the final verification to the warehouse API (tool=done).
+    """Submit the final 'done' signal to the warehouse API for verification.
 
-    ONLY call this after compare_expected_vs_actual returns status='pass'.
-    If all orders are correct, Centrala will respond with the flag.
+    Only call this after the Auditor has confirmed that:
+      - all required cities have an order
+      - each order has the correct destination, creatorID, and signature
+      - each order contains exactly the required items (no missing, no extra)
 
-    Returns: API JSON response (including flag on success), or {"error": "..."}.
+    If the solution is correct, the API will return a success flag.
+    After calling this tool, pass the response to scan_flag to extract and log the flag.
+
+    Returns: API response string.
     """
     try:
-        result = _call({"tool": "done"})
-        return json.dumps(result, ensure_ascii=False, default=str)
-    except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        result, _ = _post_to_central({"tool": "done"})
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+
+@tool
+def scan_flag(text: str) -> Optional[str]:
+    """Search for a real success flag matching the pattern {FLG:XXXXX} in the given text.
+
+    The flag must start with an alphanumeric character after 'FLG:' — placeholder text
+    like {FLG:...} is ignored.
+
+    Call this tool on the server's api_done() response to verify task completion.
+
+    Args:
+        text: Raw response string from api_done().
+
+    Returns: The flag string if found (e.g. '{FLG:abc123}'), or None.
+    """
+    flag = _scan_flag_in_response(text)
+    if flag:
+        agent_logger.info(f"[scan_flag] Flag found: {flag}")
+        return flag
+    agent_logger.info(f"[scan_flag] no flag in text={text[:200]}")
+    return None

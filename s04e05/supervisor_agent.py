@@ -26,8 +26,9 @@ from subagents import (
     run_identity_agent_tool,
     run_planner_agent_tool,
     run_auditor_agent_tool,
+
 )
-from tools import _RECURSION_LIMIT, fs_send, scan_flag
+from tools import _RECURSION_LIMIT, api_done, api_reset, scan_flag
 
 langfuse_handler = CallbackHandler()
 
@@ -55,7 +56,8 @@ supervisor = create_agent(
         run_identity_agent_tool,
         run_planner_agent_tool,
         run_auditor_agent_tool,
-        fs_send,
+        api_reset,
+        api_done,
         scan_flag,
     ],
     system_prompt=supervisor_system,

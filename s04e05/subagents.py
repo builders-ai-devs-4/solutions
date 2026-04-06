@@ -23,6 +23,7 @@ DB_RUNTIME_PATH = Path(os.environ["DB_RUNTIME_PATH"])
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from tools import (
     _RECURSION_LIMIT,
+    api_database_query,
     get_help_cache,
     get_task_input,
     get_database_schema,
@@ -73,7 +74,9 @@ recon_model = ChatOpenRouter(
 
 recon_agent = create_agent(
     model=recon_model,
-    tools=[get_help_cache, get_task_input, get_database_schema, run_database_query],
+    tools=[
+        api_database_query,
+        ],
     system_prompt=recon_system,
     name="recon_agent",
     checkpointer=InMemorySaver(),
@@ -122,7 +125,7 @@ demand_model = ChatOpenRouter(
 
 demand_agent = create_agent(
     model=demand_model,
-    tools=[get_task_input, normalize_city, normalize_item],
+    tools=[],
     system_prompt=demand_system,
     name="demand_agent",
     checkpointer=InMemorySaver(),
