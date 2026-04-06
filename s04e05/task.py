@@ -38,7 +38,7 @@ os.environ["DATA_FOLDER_PATH"] = str(date_folder_path)
 os.environ["FOOD_4_CITIES_DIR_PATH"] = str(food_4_cities_dir_path)
 os.environ["DB_DIR_PATH"] = str(db_dir_path)
 db_dir_path.mkdir(parents=True, exist_ok=True)
-db_path = db_dir_path / "foodawarehouse.db"
+db_path = db_dir_path / "foodawarehouse.duckdb"
 os.environ["DB_PATH"] = str(db_path)
 
 

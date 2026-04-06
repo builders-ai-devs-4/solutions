@@ -70,20 +70,20 @@ class Database:
     def load_json_string(self, table_name: str, json_string: str, replace: bool = False) -> int:
         """
         Load a JSON string into a table.
-
-        The input may be either a single JSON object or a JSON array of
-        objects. This is useful when data comes directly from an API response
-        or any in-memory text source instead of a file.
+        The input may be either a single JSON object or a JSON array.
+        Stored as one column: data JSON.
         """
-        table_name = self.quote_identifier(table_name)
         create_clause = "CREATE OR REPLACE TABLE" if replace else "CREATE TABLE IF NOT EXISTS"
         escaped_json = json_string.replace("'", "''")
+
         self.conn.sql(f"""
-        {create_clause} {table_name} AS
-        SELECT *
-        FROM read_json_auto('{escaped_json}', format='auto')
+            {create_clause} {self.quote_identifier(table_name)} AS
+            SELECT json('{escaped_json}') AS data
         """)
-        return self._count(table_name)
+
+        return self.conn.sql(
+            f"SELECT COUNT(*) FROM {self.quote_identifier(table_name)}"
+        ).fetchone()[0]
 
     def load_json_strings_single_table(
         self,
