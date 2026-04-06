@@ -54,6 +54,13 @@ Langfuse(
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from modules.help import get_help
 
+
+def bootstrap_static_db(db_path: Path, food_4_cities_dir_path: Path, help_result: str) -> None:
+    with Database(db_path) as db:
+        db.load_json_dir_multi_table(food_4_cities_dir_path)
+        db.load_json_string("get_help", help_result, replace=True)
+
+
 # supervisor_user_template = (
 #     Path(parent_folder_path) / "prompts" / "supervisor_user.md"
 # ).read_text(encoding="utf-8")
@@ -75,6 +82,7 @@ if __name__ == "__main__":
         food_4_cities_dir_path.mkdir(parents=True, exist_ok=True)
         food4cities_file_path = save_file(FOOD_4_CITIES_URL, food_4_cities_dir_path, override=True)
 
+        bootstrap_static_db(db_path, food_4_cities_dir_path, result)
         with Database(db_path) as db:
             agent_logger.info(f"[{MODULE_NAME}] Loading documents directory")
             db.load_json_dir_multi_table(food_4_cities_dir_path)
