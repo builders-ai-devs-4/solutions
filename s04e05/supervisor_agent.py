@@ -14,6 +14,8 @@ SOLUTION_URL = os.environ["SOLUTION_URL"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
+DB_PATH = Path(os.environ["DB_PATH"])
+DB_RUNTIME_PATH = Path(os.environ["DB_RUNTIME_PATH"])
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
 

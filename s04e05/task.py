@@ -39,7 +39,9 @@ os.environ["FOOD_4_CITIES_DIR_PATH"] = str(food_4_cities_dir_path)
 os.environ["DB_DIR_PATH"] = str(db_dir_path)
 db_dir_path.mkdir(parents=True, exist_ok=True)
 db_path = db_dir_path / "foodawarehouse.duckdb"
+db_runtime_path = db_dir_path / "runtime.duckdb"
 os.environ["DB_PATH"] = str(db_path)
+os.environ["DB_RUNTIME_PATH"] = str(db_runtime_path)
 
 
 # Singleton initialization of Langfuse (only once, at startup)
@@ -60,6 +62,12 @@ def bootstrap_static_db(db_path: Path, food_4_cities_dir_path: Path, help_result
         db.load_json_dir_multi_table(food_4_cities_dir_path)
         db.load_json_string("get_help", help_result, replace=True)
 
+def bootstrap_runtime_db(db_runtime_path: Path) -> None:
+    if db_runtime_path.exists():
+        db_runtime_path.unlink()
+
+    with Database(db_runtime_path) as db:
+        pass
 
 # supervisor_user_template = (
 #     Path(parent_folder_path) / "prompts" / "supervisor_user.md"
@@ -83,11 +91,7 @@ if __name__ == "__main__":
         food4cities_file_path = save_file(FOOD_4_CITIES_URL, food_4_cities_dir_path, override=True)
 
         bootstrap_static_db(db_path, food_4_cities_dir_path, result)
-        with Database(db_path) as db:
-            agent_logger.info(f"[{MODULE_NAME}] Loading documents directory")
-            db.load_json_dir_multi_table(food_4_cities_dir_path)
-            db.load_json_string('get_help', result)           
-
+        bootstrap_runtime_db(db_runtime_path)
 
         agent_logger.info(f"[{MODULE_NAME}] DB created at {db_path}")
         

@@ -1,9 +1,4 @@
-"""
-tools.py – foodwarehouse task tools
-10 tools mapped to: Recon / Demand / Mapping / Identity / Planner / Executor / Auditor / Supervisor
-DB bootstrap (create_schema, load static data) is done externally before agents start.
-"""
-from __future__ import annotations
+
 
 import json
 import os
@@ -13,32 +8,44 @@ from typing import Any
 import requests
 from langchain_core.tools import tool
 
-from database import Database
+from libs.database import Database
 
 # ── Constants ──────────────────────────────────────────────────────────────
 _RECURSION_LIMIT = 50
 
-_SECRET    = os.environ["AI_DEVS_SECRET"]
-_TASK      = os.environ.get("TASK_NAME", "foodwarehouse")
-_API_URL   = os.environ["SOLUTION_URL"]
-_DB_PATH   = Path(os.environ["DB_PATH"])
+AI_DEVS_SECRET = os.environ["AI_DEVS_SECRET"]
+TASK_NAME = os.environ["TASK_NAME"]
+SOLUTION_URL = os.environ["SOLUTION_URL"]
+PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
+DATA_FOLDER_PATH = os.environ["DATA_FOLDER_PATH"]
+TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
+DB_PATH = Path(os.environ["DB_PATH"])
+DB_RUNTIME_PATH = Path(os.environ["DB_RUNTIME_PATH"])
 
 # ── DB singleton ───────────────────────────────────────────────────────────
-_db: Database | None = None
 
 
-def get_db() -> Database:
-    global _db
-    if _db is None:
-        _db = Database(_DB_PATH)
-    return _db
+_static_db: Database | None = None
+_runtime_db: Database | None = None
+
+def get_static_db() -> Database:
+    global _static_db
+    if _static_db is None:
+        _static_db = Database(DB_PATH)
+    return _static_db
+
+def get_runtime_db() -> Database:
+    global _runtime_db
+    if _runtime_db is None:
+        _runtime_db = Database(DB_RUNTIME_PATH)
+    return _runtime_db
 
 
 # ── Internal API helper ────────────────────────────────────────────────────
 def _call(answer: dict[str, Any]) -> dict[str, Any]:
     resp = requests.post(
-        _API_URL,
-        json={"apikey": _SECRET, "task": _TASK, "answer": answer},
+        SOLUTION_URL,
+        json={"apikey": AI_DEVS_SECRET, "task": TASK_NAME, "answer": answer},
         timeout=30,
     )
     resp.raise_for_status()
@@ -46,7 +53,7 @@ def _call(answer: dict[str, Any]) -> dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 1 – LOCAL DUCKDB
+#  GROUP 1 - LOCAL DUCKDB
 #  Used by: Recon, Demand, Mapping, Identity, Planner, Executor, Auditor
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -55,8 +62,8 @@ def db_query(sql: str) -> str:
     """Execute any SELECT query on the local DuckDB database and return results as JSON.
 
     Available schemas:
-    - main.*        – static tables loaded at bootstrap: 'help', 'food4cities'
-    - runtime.*     – tables written by agents during this run
+    - main.*        - static tables loaded at bootstrap: 'help', 'food4cities'
+    - runtime.*     - tables written by agents during this run
 
     Use DESCRIBE <table> or SELECT * FROM information_schema.tables
     to inspect structure when needed.
@@ -64,7 +71,7 @@ def db_query(sql: str) -> str:
     Returns: JSON array of row dicts, or {"error": "..."}.
     """
     try:
-        rows = get_db().query(sql)
+        rows = get_runtime_db().query(sql)
         return json.dumps(rows, ensure_ascii=False, default=str)
     except Exception as exc:
         return json.dumps({"error": str(exc)})
@@ -88,7 +95,7 @@ def db_store_json(table_name: str, payload: str, replace: bool = False) -> str:
     Returns: {"table": ..., "rows": N, "status": "ok"} or {"error": "..."}.
     """
     try:
-        db = get_db()
+        db = get_runtime_db()
         parsed: Any = json.loads(payload)
         records: list[dict] = parsed if isinstance(parsed, list) else [parsed]
         if not records:
@@ -100,7 +107,7 @@ def db_store_json(table_name: str, payload: str, replace: bool = False) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 2 – REMOTE SQLite  (read-only, via warehouse API)
+#  GROUP 2 - REMOTE SQLite  (read-only, via warehouse API)
 #  Used by: Recon, Mapping, Identity
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -109,9 +116,9 @@ def api_database_query(sql: str) -> str:
     """Execute a read-only SQL query against the remote SQLite database.
 
     Supported queries:
-    - 'show tables'              – list available tables
-    - 'SELECT * FROM <table>'    – read rows
-    - 'PRAGMA table_info(<t>)'   – column names and types (SQLite syntax)
+    - 'show tables'              - list available tables
+    - 'SELECT * FROM <table>'    - read rows
+    - 'PRAGMA table_info(<t>)'   - column names and types (SQLite syntax)
 
     Use to discover destination codes, creator identities, and
     any data needed to build the order signature.
@@ -126,7 +133,7 @@ def api_database_query(sql: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 3 – SIGNATURE
+#  GROUP 3 - SIGNATURE
 #  Used by: Identity
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -151,7 +158,7 @@ def api_signature_generate(payload: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 4 – ORDERS  (stateful – mutates warehouse)
+#  GROUP 4 - ORDERS  (stateful - mutates warehouse)
 #  Used by: Executor (create, append); Auditor + Executor (get)
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -177,7 +184,7 @@ def api_orders_create(title: str, creator_id: int, destination: str, signature: 
     """Create a single new order in the warehouse system.
 
     IMPORTANT: Only call this after all header fields are confirmed.
-    One separate order must be created per city – never combine cities.
+    One separate order must be created per city - never combine cities.
 
     Args:
         title:       human-readable order title, e.g. 'Dostawa dla Torunia'
@@ -205,7 +212,7 @@ def api_orders_create(title: str, creator_id: int, destination: str, signature: 
 def api_orders_append(order_id: str, items: str) -> str:
     """Append items to an existing order using batch mode.
 
-    Always use batch mode – send all items for the order in a single call.
+    Always use batch mode - send all items for the order in a single call.
     If an item already exists in the order, its quantity will be increased.
 
     Args:
@@ -229,7 +236,7 @@ def api_orders_append(order_id: str, items: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 5 – VALIDATION / AUDIT
+#  GROUP 5 - VALIDATION / AUDIT
 #  Used by: Planner (execution_ready); Auditor (compare); Supervisor (done)
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -306,7 +313,7 @@ def compare_expected_vs_actual() -> str:
 
     try:
         api_resp  = _call({"tool": "orders", "action": "get"})
-        # API may nest orders under a key – try common shapes
+        # API may nest orders under a key - try common shapes
         raw = api_resp
         if isinstance(raw, dict):
             actual_orders = raw.get("orders") or raw.get("message") or raw.get("data") or raw
@@ -367,7 +374,7 @@ def compare_expected_vs_actual() -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  GROUP 6 – FINALIZATION
+#  GROUP 6 - FINALIZATION
 #  Used by: Supervisor only
 # ══════════════════════════════════════════════════════════════════════════
 
