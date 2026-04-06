@@ -23,15 +23,15 @@ DB_RUNTIME_PATH = Path(os.environ["DB_RUNTIME_PATH"])
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from tools import (
     _RECURSION_LIMIT,
+    static_db_query,
+    runtime_db_query,
+    runtime_db_store_records,
+    runtime_db_append_records,
     api_database_query,
-    get_help_cache,
-    get_task_input,
-    get_database_schema,
-    run_database_query,
-    get_signature_requirements,
-    get_runtime_orders,
-    normalize_city,
-    normalize_item,
+    api_signature_generate,
+    api_orders_get,
+    api_orders_create,     
+    api_orders_append,   
 )
 
 langfuse_handler = CallbackHandler()
@@ -60,6 +60,10 @@ auditor_system = (
     Path(PARENT_FOLDER_PATH) / "prompts" / "auditor_system.md"
 ).read_text(encoding="utf-8")
 
+executor_system = (
+    Path(PARENT_FOLDER_PATH) / "prompts" / "executor_system.md"
+).read_text(encoding="utf-8")
+
 RECON_CONFIG = {
     "configurable": {"thread_id": "recon-agent"},
     "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
@@ -75,8 +79,10 @@ recon_model = ChatOpenRouter(
 recon_agent = create_agent(
     model=recon_model,
     tools=[
+        static_db_query,
         api_database_query,
-        ],
+        runtime_db_store_records,
+    ],
     system_prompt=recon_system,
     name="recon_agent",
     checkpointer=InMemorySaver(),
@@ -125,7 +131,11 @@ demand_model = ChatOpenRouter(
 
 demand_agent = create_agent(
     model=demand_model,
-    tools=[],
+    tools=[
+        static_db_query,
+        runtime_db_query,
+        runtime_db_store_records,
+    ],
     system_prompt=demand_system,
     name="demand_agent",
     checkpointer=InMemorySaver(),
@@ -168,7 +178,11 @@ mapping_model = ChatOpenRouter(
 
 mapping_agent = create_agent(
     model=mapping_model,
-    tools=[get_database_schema, run_database_query, normalize_city],
+    tools=[
+        api_database_query,
+        runtime_db_query,
+        runtime_db_store_records,
+    ],
     system_prompt=mapping_system,
     name="mapping_agent",
     checkpointer=InMemorySaver(),
@@ -211,7 +225,12 @@ identity_model = ChatOpenRouter(
 
 identity_agent = create_agent(
     model=identity_model,
-    tools=[get_database_schema, run_database_query, get_signature_requirements],
+    tools=[
+        api_database_query,
+        api_signature_generate,
+        runtime_db_query,
+        runtime_db_store_records,
+    ],
     system_prompt=identity_system,
     name="identity_agent",
     checkpointer=InMemorySaver(),
@@ -256,21 +275,6 @@ planner_model = ChatOpenRouter(
     temperature=0,
     model_kwargs={"parallel_tool_calls": False},
 )
-
-planner_agent = create_agent(
-    model=planner_model,
-    tools=[
-        run_recon_agent_tool,
-        run_demand_agent_tool,
-        run_mapping_agent_tool,
-        run_identity_agent_tool,
-    ],
-    system_prompt=planner_system,
-    name="planner_agent",
-    checkpointer=InMemorySaver(),
-)
-
-
 def run_planner_agent() -> dict:
     """
     Invoke PlannerAgent and return the consolidated execution plan.
@@ -309,15 +313,6 @@ auditor_model = ChatOpenRouter(
     temperature=0,
     model_kwargs={"parallel_tool_calls": False},
 )
-
-auditor_agent = create_agent(
-    model=auditor_model,
-    tools=[run_planner_agent_tool, get_runtime_orders],
-    system_prompt=auditor_system,
-    name="auditor_agent",
-    checkpointer=InMemorySaver(),
-)
-
 
 def run_auditor_agent() -> dict:
     """
@@ -410,4 +405,108 @@ def run_auditor_agent_tool() -> str:
     """
     data = run_auditor_agent()
     agent_logger.info("[supervisor] auditor_agent returned data")
+    return json.dumps(data, ensure_ascii=False)
+
+
+# Patch planner/auditor tools after wrapper definitions to preserve file structure.
+
+
+auditor_agent = create_agent(
+    model=auditor_model,
+    tools=[
+        run_planner_agent_tool,
+        runtime_db_query,
+        api_orders_get,
+        runtime_db_store_records,
+        runtime_db_append_records,
+    ],
+    system_prompt=auditor_system,
+    name="auditor_agent",
+    checkpointer=InMemorySaver(),
+)
+
+
+planner_agent = create_agent(
+    model=planner_model,
+    tools=[
+        run_recon_agent_tool,
+        run_demand_agent_tool,
+        run_mapping_agent_tool,
+        run_identity_agent_tool,
+        runtime_db_query,
+        runtime_db_store_records,
+    ],
+    system_prompt=planner_system,
+    name="planner_agent",
+    checkpointer=InMemorySaver(),
+)
+
+EXECUTOR_CONFIG = {
+    "configurable": {"thread_id": "executor-agent"},
+    "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
+    "recursion_limit": _RECURSION_LIMIT,
+}
+
+executor_model = ChatOpenRouter(
+    model="openai/gpt-5-mini",
+    temperature=0,
+    model_kwargs={"parallel_tool_calls": False},
+)
+
+executor_agent = create_agent(
+    model=executor_model,
+    tools=[
+        runtime_db_query,
+        api_orders_get,
+        api_orders_create,
+        api_orders_append,
+        runtime_db_store_records,
+        runtime_db_append_records,
+    ],
+    system_prompt=executor_system,
+    name="executor_agent",
+    checkpointer=InMemorySaver(),
+)
+
+
+def run_executor_agent() -> dict:
+    """
+    Invoke ExecutorAgent and return execution results.
+    Returns: {
+      "created_orders": [...],
+      "appended_items": [...],
+      "errors": [...],
+      "notes": [...]
+    }
+    """
+    agent_logger.info("[executor_agent] starting")
+    result = executor_agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        "Read the order_plan from the runtime database. "
+                        "For each city: create the order, then append all required items in a single batch call. "
+                        "Log every API response to execution_log table. "
+                        "Do not call api_done — only create and populate orders."
+                    ),
+                }
+            ]
+        },
+        config=EXECUTOR_CONFIG,
+    )
+    last = result["messages"][-1].content
+    agent_logger.info(f"[executor_agent] done — {last}")
+    return json.loads(last)
+
+@tool
+def run_executor_agent_tool() -> str:
+    """
+    Run the ExecutorAgent sub-agent.
+    Creates all orders and appends items based on the runtime order_plan.
+    Returns execution results as JSON string.
+    """
+    data = run_executor_agent()
+    agent_logger.info("[supervisor] executor_agent returned data")
     return json.dumps(data, ensure_ascii=False)
