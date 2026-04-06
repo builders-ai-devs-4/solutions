@@ -30,8 +30,8 @@ from tools import (
     api_database_query,
     api_signature_generate,
     api_orders_get,
-    api_orders_create,     
-    api_orders_append,   
+    api_orders_create,
+    api_orders_append,
 )
 
 langfuse_handler = CallbackHandler()
@@ -56,12 +56,12 @@ planner_system = (
     Path(PARENT_FOLDER_PATH) / "prompts" / "planner_system.md"
 ).read_text(encoding="utf-8")
 
-auditor_system = (
-    Path(PARENT_FOLDER_PATH) / "prompts" / "auditor_system.md"
-).read_text(encoding="utf-8")
-
 executor_system = (
     Path(PARENT_FOLDER_PATH) / "prompts" / "executor_system.md"
+).read_text(encoding="utf-8")
+
+auditor_system = (
+    Path(PARENT_FOLDER_PATH) / "prompts" / "auditor_system.md"
 ).read_text(encoding="utf-8")
 
 RECON_CONFIG = {
@@ -106,7 +106,7 @@ def run_recon_agent() -> dict:
             "messages": [
                 {
                     "role": "user",
-                    "content": "Discover the available sources, schema hints, important fields, and likely next steps.",
+                    "content": "Discover the available local and remote data sources, schema hints, important fields, and likely next steps.",
                 }
             ]
         },
@@ -153,7 +153,7 @@ def run_demand_agent() -> dict:
             "messages": [
                 {
                     "role": "user",
-                    "content": "Extract all participating cities and their required goods and quantities from the task input.",
+                    "content": "Extract all participating cities and their required goods and quantities from the local static database, then persist normalized results to runtime tables.",
                 }
             ]
         },
@@ -200,7 +200,7 @@ def run_mapping_agent() -> dict:
             "messages": [
                 {
                     "role": "user",
-                    "content": "Determine destination codes for all required cities using database evidence.",
+                    "content": "Determine destination codes for all required cities using the remote database and persist the mapping into runtime tables.",
                 }
             ]
         },
@@ -253,7 +253,7 @@ def run_identity_agent() -> dict:
             "messages": [
                 {
                     "role": "user",
-                    "content": "Identify valid creator IDs and the requirements needed for signature generation.",
+                    "content": "Identify valid creator IDs, determine signature input requirements, generate valid signatures, and persist the identity mapping into runtime tables.",
                 }
             ]
         },
@@ -261,84 +261,6 @@ def run_identity_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[identity_agent] done — {last}")
-    return json.loads(last)
-
-
-PLANNER_CONFIG = {
-    "configurable": {"thread_id": "planner-agent"},
-    "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
-    "recursion_limit": _RECURSION_LIMIT,
-}
-
-planner_model = ChatOpenRouter(
-    model="openai/gpt-5-mini",
-    temperature=0,
-    model_kwargs={"parallel_tool_calls": False},
-)
-def run_planner_agent() -> dict:
-    """
-    Invoke PlannerAgent and return the consolidated execution plan.
-    Returns: {
-      "plan_ready": bool,
-      "orders": [...],
-      "missing": [...],
-      "notes": [...]
-    }
-    """
-    agent_logger.info("[planner_agent] starting")
-    result = planner_agent.invoke(
-        {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Build a complete execution plan with one order per city using the outputs of the other agents.",
-                }
-            ]
-        },
-        config=PLANNER_CONFIG,
-    )
-    last = result["messages"][-1].content
-    agent_logger.info(f"[planner_agent] done — {last}")
-    return json.loads(last)
-
-
-AUDITOR_CONFIG = {
-    "configurable": {"thread_id": "auditor-agent"},
-    "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
-    "recursion_limit": _RECURSION_LIMIT,
-}
-
-auditor_model = ChatOpenRouter(
-    model="openai/gpt-5-mini",
-    temperature=0,
-    model_kwargs={"parallel_tool_calls": False},
-)
-
-def run_auditor_agent() -> dict:
-    """
-    Invoke AuditorAgent and return audit comparison results.
-    Returns: {
-      "pass": bool,
-      "missing_orders": [...],
-      "header_mismatches": [...],
-      "item_mismatches": [...],
-      "notes": [...]
-    }
-    """
-    agent_logger.info("[auditor_agent] starting")
-    result = auditor_agent.invoke(
-        {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Compare the current order state with the execution plan and report all mismatches.",
-                }
-            ]
-        },
-        config=AUDITOR_CONFIG,
-    )
-    last = result["messages"][-1].content
-    agent_logger.info(f"[auditor_agent] done — {last}")
     return json.loads(last)
 
 
@@ -386,45 +308,17 @@ def run_identity_agent_tool() -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-@tool
-def run_planner_agent_tool() -> str:
-    """
-    Run the PlannerAgent sub-agent.
-    Returns extracted data as JSON string.
-    """
-    data = run_planner_agent()
-    agent_logger.info("[supervisor] planner_agent returned data")
-    return json.dumps(data, ensure_ascii=False)
+PLANNER_CONFIG = {
+    "configurable": {"thread_id": "planner-agent"},
+    "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
+    "recursion_limit": _RECURSION_LIMIT,
+}
 
-
-@tool
-def run_auditor_agent_tool() -> str:
-    """
-    Run the AuditorAgent sub-agent.
-    Returns extracted data as JSON string.
-    """
-    data = run_auditor_agent()
-    agent_logger.info("[supervisor] auditor_agent returned data")
-    return json.dumps(data, ensure_ascii=False)
-
-
-# Patch planner/auditor tools after wrapper definitions to preserve file structure.
-
-
-auditor_agent = create_agent(
-    model=auditor_model,
-    tools=[
-        run_planner_agent_tool,
-        runtime_db_query,
-        api_orders_get,
-        runtime_db_store_records,
-        runtime_db_append_records,
-    ],
-    system_prompt=auditor_system,
-    name="auditor_agent",
-    checkpointer=InMemorySaver(),
+planner_model = ChatOpenRouter(
+    model="openai/gpt-5-mini",
+    temperature=0,
+    model_kwargs={"parallel_tool_calls": False},
 )
-
 
 planner_agent = create_agent(
     model=planner_model,
@@ -440,6 +334,45 @@ planner_agent = create_agent(
     name="planner_agent",
     checkpointer=InMemorySaver(),
 )
+
+
+def run_planner_agent() -> dict:
+    """
+    Invoke PlannerAgent and return the consolidated execution plan.
+    Returns: {
+      "plan_ready": bool,
+      "orders": [...],
+      "missing": [...],
+      "notes": [...]
+    }
+    """
+    agent_logger.info("[planner_agent] starting")
+    result = planner_agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Build a complete execution plan with one order per city using the outputs of the other agents, and persist the final order plan into runtime tables.",
+                }
+            ]
+        },
+        config=PLANNER_CONFIG,
+    )
+    last = result["messages"][-1].content
+    agent_logger.info(f"[planner_agent] done — {last}")
+    return json.loads(last)
+
+
+@tool
+def run_planner_agent_tool() -> str:
+    """
+    Run the PlannerAgent sub-agent.
+    Returns extracted data as JSON string.
+    """
+    data = run_planner_agent()
+    agent_logger.info("[supervisor] planner_agent returned data")
+    return json.dumps(data, ensure_ascii=False)
+
 
 EXECUTOR_CONFIG = {
     "configurable": {"thread_id": "executor-agent"},
@@ -500,13 +433,79 @@ def run_executor_agent() -> dict:
     agent_logger.info(f"[executor_agent] done — {last}")
     return json.loads(last)
 
+
 @tool
 def run_executor_agent_tool() -> str:
     """
     Run the ExecutorAgent sub-agent.
-    Creates all orders and appends items based on the runtime order_plan.
     Returns execution results as JSON string.
     """
     data = run_executor_agent()
     agent_logger.info("[supervisor] executor_agent returned data")
+    return json.dumps(data, ensure_ascii=False)
+
+
+AUDITOR_CONFIG = {
+    "configurable": {"thread_id": "auditor-agent"},
+    "callbacks": [LoggerCallbackHandler(agent_logger), langfuse_handler],
+    "recursion_limit": _RECURSION_LIMIT,
+}
+
+auditor_model = ChatOpenRouter(
+    model="openai/gpt-5-mini",
+    temperature=0,
+    model_kwargs={"parallel_tool_calls": False},
+)
+
+auditor_agent = create_agent(
+    model=auditor_model,
+    tools=[
+        run_planner_agent_tool,
+        runtime_db_query,
+        api_orders_get,
+        runtime_db_store_records,
+        runtime_db_append_records,
+    ],
+    system_prompt=auditor_system,
+    name="auditor_agent",
+    checkpointer=InMemorySaver(),
+)
+
+
+def run_auditor_agent() -> dict:
+    """
+    Invoke AuditorAgent and return audit comparison results.
+    Returns: {
+      "pass": bool,
+      "missing_orders": [...],
+      "header_mismatches": [...],
+      "item_mismatches": [...],
+      "notes": [...]
+    }
+    """
+    agent_logger.info("[auditor_agent] starting")
+    result = auditor_agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Compare the current order state with the execution plan and report all mismatches. Persist the audit result to runtime tables.",
+                }
+            ]
+        },
+        config=AUDITOR_CONFIG,
+    )
+    last = result["messages"][-1].content
+    agent_logger.info(f"[auditor_agent] done — {last}")
+    return json.loads(last)
+
+
+@tool
+def run_auditor_agent_tool() -> str:
+    """
+    Run the AuditorAgent sub-agent.
+    Returns extracted data as JSON string.
+    """
+    data = run_auditor_agent()
+    agent_logger.info("[supervisor] auditor_agent returned data")
     return json.dumps(data, ensure_ascii=False)

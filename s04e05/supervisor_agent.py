@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_openrouter import ChatOpenRouter
@@ -25,10 +26,16 @@ from subagents import (
     run_mapping_agent_tool,
     run_identity_agent_tool,
     run_planner_agent_tool,
+    run_executor_agent_tool,
     run_auditor_agent_tool,
-
 )
-from tools import _RECURSION_LIMIT, api_done, api_reset, scan_flag
+
+from tools import (
+    _RECURSION_LIMIT,
+    api_done,
+    api_reset,
+    scan_flag,
+)
 
 langfuse_handler = CallbackHandler()
 
@@ -55,6 +62,7 @@ supervisor = create_agent(
         run_mapping_agent_tool,
         run_identity_agent_tool,
         run_planner_agent_tool,
+        run_executor_agent_tool,
         run_auditor_agent_tool,
         api_reset,
         api_done,
