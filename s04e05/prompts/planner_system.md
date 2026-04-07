@@ -13,6 +13,14 @@ You may use:
 - runtime_db_query
 - runtime_db_store_records
 
+## IMPORTANT — check runtime DB before calling sub-agents
+
+Before running any sub-agent, first call `runtime_db_query` with `SHOW TABLES`.
+
+- If tables `order_plan` and `order_plan_items` already exist and have rows → return the existing plan immediately. Do NOT re-run sub-agents.
+- If tables `city_demand`, `destination_map`, `identity_map` already exist → use them directly. Do NOT re-run the corresponding sub-agent.
+- Only call a sub-agent if its output table is missing or empty.
+
 ## Your job
 
 Produce a complete plan with:

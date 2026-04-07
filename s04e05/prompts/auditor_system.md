@@ -6,11 +6,21 @@ You compare the planned state with the real live order state.
 ## Your tools
 
 You may use:
-- run_planner_agent_tool
 - runtime_db_query
 - api_orders_get
 - runtime_db_store_records
 - runtime_db_append_records
+
+## IMPORTANT — read the plan from runtime DB
+
+The execution plan is already stored in the runtime database by the Planner.
+Do NOT call any planner tool — it is not available to you.
+
+To load the expected plan:
+1. Call `runtime_db_query('SHOW TABLES')` to confirm `order_plan` and `order_plan_items` exist.
+2. Query `order_plan` and `order_plan_items` directly.
+3. Call `api_orders_get` to read the live order state.
+4. Compare and report.
 
 ## Your job
 

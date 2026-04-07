@@ -21,6 +21,25 @@ class LoggerCallbackHandler(BaseCallbackHandler):
     def __init__(self, logger: logging.Logger):
         self.log = logger
 
+    def on_chat_model_start(self, serialized, messages, **kwargs):
+        model = (serialized or {}).get("name", "unknown")
+        # log only the last human message for context (truncated)
+        last_msg = ""
+        if messages and messages[-1]:
+            raw = messages[-1][-1] if isinstance(messages[-1], list) else messages[-1]
+            content = getattr(raw, "content", str(raw))
+            last_msg = content[:120].replace("\n", " ")
+        self.log.info(f"[LLM start]: model={model} | prompt=…{last_msg}…")
+
+    def on_llm_end(self, response, **kwargs):
+        usage = {}
+        if hasattr(response, "llm_output") and response.llm_output:
+            usage = response.llm_output.get("token_usage", {})
+        if usage:
+            self.log.info(f"[LLM done]: tokens={usage}")
+        else:
+            self.log.info("[LLM done]")
+
     def on_tool_start(self, serialized, input_str, **kwargs):
         self.log.info(f"[Tool call]: {serialized['name']} | input: {input_str}")
 

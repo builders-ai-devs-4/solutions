@@ -23,6 +23,7 @@ DB_RUNTIME_PATH = Path(os.environ["DB_RUNTIME_PATH"])
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from tools import (
     _RECURSION_LIMIT,
+    get_runtime_db,
     static_db_query,
     runtime_db_query,
     runtime_db_store_records,
@@ -363,6 +364,16 @@ def run_planner_agent() -> dict:
     }
     """
     agent_logger.info("[planner_agent] starting")
+    try:
+        _tables = get_runtime_db().query("SHOW TABLES")
+        _names = [t["name"] for t in _tables]
+        agent_logger.info(f"[planner_agent] runtime DB tables: {_names}")
+        for _t in ("city_demand", "destination_map", "identity_map", "order_plan"):
+            if _t in _names:
+                _cnt = get_runtime_db().query(f"SELECT COUNT(*) AS n FROM {_t}")[0]["n"]
+                agent_logger.info(f"[planner_agent] table {_t}: {_cnt} rows")
+    except Exception as _e:
+        agent_logger.warning(f"[planner_agent] pre-flight DB check failed: {_e}")
     result = planner_agent.invoke(
         {
             "messages": [
@@ -476,7 +487,6 @@ auditor_model = ChatOpenRouter(
 auditor_agent = create_agent(
     model=auditor_model,
     tools=[
-        run_planner_agent_tool,
         runtime_db_query,
         api_orders_get,
         runtime_db_store_records,
@@ -500,6 +510,16 @@ def run_auditor_agent() -> dict:
     }
     """
     agent_logger.info("[auditor_agent] starting")
+    try:
+        _tables = get_runtime_db().query("SHOW TABLES")
+        _names = [t["name"] for t in _tables]
+        agent_logger.info(f"[auditor_agent] runtime DB tables: {_names}")
+        for _t in ("order_plan", "order_plan_items", "execution_log"):
+            if _t in _names:
+                _cnt = get_runtime_db().query(f"SELECT COUNT(*) AS n FROM {_t}")[0]["n"]
+                agent_logger.info(f"[auditor_agent] table {_t}: {_cnt} rows")
+    except Exception as _e:
+        agent_logger.warning(f"[auditor_agent] pre-flight DB check failed: {_e}")
     result = auditor_agent.invoke(
         {
             "messages": [
