@@ -36,6 +36,22 @@ from tools import (
 
 langfuse_handler = CallbackHandler()
 
+
+def _parse_agent_output(raw: str, agent_name: str) -> dict:
+    """Parse JSON from agent output, stripping markdown code fences if present."""
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # drop opening fence (```json or ```) and closing fence
+        inner = lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:]
+        text = "\n".join(inner).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        agent_logger.warning(f"[{agent_name}] JSON parse error: {e}. Raw output: {raw[:300]}")
+        return {"error": str(e), "raw": raw}
+
+
 recon_system = (
     Path(PARENT_FOLDER_PATH) / "prompts" / "recon_system.md"
 ).read_text(encoding="utf-8")
@@ -114,7 +130,7 @@ def run_recon_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[recon_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "recon_agent")
 
 
 DEMAND_CONFIG = {
@@ -161,7 +177,7 @@ def run_demand_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[demand_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "demand_agent")
 
 
 MAPPING_CONFIG = {
@@ -208,7 +224,7 @@ def run_mapping_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[mapping_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "mapping_agent")
 
 
 IDENTITY_CONFIG = {
@@ -261,7 +277,7 @@ def run_identity_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[identity_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "identity_agent")
 
 
 @tool
@@ -360,7 +376,7 @@ def run_planner_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[planner_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "planner_agent")
 
 
 @tool
@@ -431,7 +447,7 @@ def run_executor_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[executor_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "executor_agent")
 
 
 @tool
@@ -497,7 +513,7 @@ def run_auditor_agent() -> dict:
     )
     last = result["messages"][-1].content
     agent_logger.info(f"[auditor_agent] done — {last}")
-    return json.loads(last)
+    return _parse_agent_output(last, "auditor_agent")
 
 
 @tool

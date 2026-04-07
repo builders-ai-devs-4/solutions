@@ -80,6 +80,8 @@ if __name__ == "__main__":
     result, payload = get_help({"tool": "help"})
     agent_logger.info(f"[{MODULE_NAME}] help={result}")
     
+    bootstrap_runtime_db(db_runtime_path)
+
     if not db_path.exists():
         
         filename_from_url = get_filename_from_url(FOOD_4_CITIES_URL)
@@ -88,7 +90,6 @@ if __name__ == "__main__":
         food4cities_file_path = save_file(FOOD_4_CITIES_URL, food_4_cities_dir_path, override=True)
 
         bootstrap_static_db(db_path, food_4_cities_dir_path, result)
-        bootstrap_runtime_db(db_runtime_path)
 
         agent_logger.info(f"[{MODULE_NAME}] DB created at {db_path}")
         

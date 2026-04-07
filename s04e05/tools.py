@@ -193,8 +193,8 @@ def api_signature_generate(params_json: str) -> str:
 
     Args:
         params_json: JSON object string with the fields required by signatureGenerator.
-                     Exact field names must be discovered from the API / database first.
-                     Example: '{"userID": 3}'
+                     Must include: "action", "login", "birthday", "destination".
+                     Example: '{"action": "generate", "login": "jkowalski", "birthday": "1971-01-01", "destination": 991828}'
 
     Returns: API response containing the generated signature string, or an error message.
     """

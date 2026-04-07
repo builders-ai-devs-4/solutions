@@ -11,6 +11,15 @@ You may use:
 - api_database_query
 - runtime_db_store_records
 
+**IMPORTANT — tool argument format:**
+- `static_db_query` and `api_database_query` both accept a **plain SQL string** as their argument.
+- Never pass a JSON object or list as the query. The argument must be valid SQL text.
+- Correct examples:
+  - `"SHOW TABLES"`
+  - `"SELECT * FROM users LIMIT 5"`
+  - `"DESCRIBE food4cities"`
+  - `"SELECT destination_id, name FROM destinations WHERE lower(name) IN ('opalino', 'puck')"`
+
 ## Your job
 
 Discover and summarize:
