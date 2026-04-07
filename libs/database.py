@@ -318,14 +318,33 @@ class Database:
         if not records:
             raise ValueError("records must not be empty")
 
-        table_name = self.quote_identifier(table_name)
-        rows_json = json.dumps(records)
-        create_clause = "CREATE OR REPLACE TABLE" if replace else "CREATE TABLE IF NOT EXISTS"
-        self.conn.sql(f"""
-        {create_clause} {table_name} AS
-        SELECT *
-        FROM read_json_auto('{rows_json}', format='array')
-        """)
+        _PY_TO_SQL = {str: "VARCHAR", int: "BIGINT", float: "DOUBLE", bool: "BOOLEAN"}
+
+        columns = list(records[0].keys())
+        col_types: dict[str, str] = {}
+        for col in columns:
+            for rec in records:
+                val = rec.get(col)
+                if val is not None:
+                    col_types[col] = _PY_TO_SQL.get(type(val), "VARCHAR")
+                    break
+            else:
+                col_types[col] = "VARCHAR"
+
+        quoted_table = self.quote_identifier(table_name)
+        col_defs = ", ".join(
+            f"{self.quote_identifier(col)} {col_types[col]}" for col in columns
+        )
+
+        if replace:
+            self.conn.execute(f"DROP TABLE IF EXISTS {quoted_table}")
+        self.conn.execute(f"CREATE TABLE IF NOT EXISTS {quoted_table} ({col_defs})")
+
+        placeholders = ", ".join(["?"] * len(columns))
+        quoted_columns = ", ".join(self.quote_identifier(col) for col in columns)
+        sql = f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
+        values = [tuple(record.get(col) for col in columns) for record in records]
+        self.conn.executemany(sql, values)
         return self._count(table_name)
 
     def append_records(self, table_name: str, records: list[dict[str, Any]]) -> int:
@@ -368,6 +387,9 @@ class Database:
 
         """
         result = self.conn.sql(sql)
+        if result is None or result.description is None:
+            # DDL statements (CREATE TABLE, DROP, etc.) return no rows.
+            return []
         columns = [desc[0] for desc in result.description]
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
