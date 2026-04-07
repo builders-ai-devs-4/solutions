@@ -52,7 +52,7 @@ Langfuse(
     secret_key=os.environ["LANGFUSE_SECRET_KEY"],
 )
 
-# from supervisor_agent import SUPERVISOR_CONFIG, supervisor
+from supervisor_agent import SUPERVISOR_CONFIG, supervisor
 from libs.loggers import LoggerCallbackHandler, agent_logger
 from modules.help import get_help
 
@@ -69,13 +69,10 @@ def bootstrap_runtime_db(db_runtime_path: Path) -> None:
     with Database(db_runtime_path) as db:
         pass
 
-# supervisor_user_template = (
-#     Path(parent_folder_path) / "prompts" / "supervisor_user.md"
-# ).read_text(encoding="utf-8")
+supervisor_user = (
+    Path(parent_folder_path) / "prompts" / "supervisor_user.md"
+).read_text(encoding="utf-8")
 
-# supervisor_user = Template(supervisor_user_template).substitute(
-#     DB_PATH=str(db_path),
-# )
 
 if __name__ == "__main__":
    
@@ -96,11 +93,11 @@ if __name__ == "__main__":
         agent_logger.info(f"[{MODULE_NAME}] DB created at {db_path}")
         
 
-    # result = supervisor.invoke(
-    #     {"messages": [{"role": "user", "content": supervisor_user}]},
-    #     config=SUPERVISOR_CONFIG,
-    # )
-    # agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
+    result = supervisor.invoke(
+        {"messages": [{"role": "user", "content": supervisor_user}]},
+        config=SUPERVISOR_CONFIG,
+    )
+    agent_logger.info(f"[{MODULE_NAME}] {result['messages'][-1].content}")
     
     
   
