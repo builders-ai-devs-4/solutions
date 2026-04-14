@@ -21,6 +21,7 @@ python -m pip install --upgrade pip
 ### .vscode/settings.json
 
 VS Code zapisuje wybór w .vscode/settings.json na poziomie workspace.
+
 ​### Libs
 
 ```bash
