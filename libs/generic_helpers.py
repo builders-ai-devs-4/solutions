@@ -8,6 +8,8 @@ import os
 import base64
 import requests
 
+import zipfile
+
 def get_filename_from_url(url: str = None) -> str:
     if url is None:
         return None
@@ -97,3 +99,27 @@ def save_json_file(file_path: str | Path, data: dict, append: bool = True) -> Pa
         data = existing_data
     path.write_text(json.dumps(data, indent=4), encoding="utf-8")
     return path
+
+
+def extract_zip(
+    zip_path: str,
+    destination_dir: str,
+    password: str | None = None
+) -> bool:
+    os.makedirs(destination_dir, exist_ok=True)
+
+    pwd_bytes = password.encode("utf-8") if password else None
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(path=destination_dir, pwd=pwd_bytes)
+        return True
+    except zipfile.BadZipFile:
+        print(f"Error: '{zip_path}' is not a valid ZIP file.")
+    except RuntimeError as e:
+        # Wrong password or missing password for an encrypted archive
+        print(f"Encryption error: {e}")
+    except FileNotFoundError:
+        print(f"Error: file '{zip_path}' does not exist.")
+
+    return False
