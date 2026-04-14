@@ -35,6 +35,7 @@ MAGIC_SIGNATURES = [
 EXT_TO_MIME = {
     ".md": "text/markdown",
     ".txt": "text/plain",
+    ".log": "text/plain",
     ".json": "application/json",
     ".csv": "text/csv",
     ".xml": "application/xml",
