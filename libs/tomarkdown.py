@@ -8,7 +8,7 @@ import sys
 from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from libs.generic_helpers import get_filename_from_url, save_file
+from libs.generic_helpers import get_filename_from_url, save_file, save_text_file
 load_dotenv()
 
 def transform_html_to_markdown(output_dir: Path | str, html_url: str, preset: str = 'aggressive') -> Path:
@@ -27,7 +27,9 @@ def transform_html_to_markdown(output_dir: Path | str, html_url: str, preset: st
     markdown_file_path = output_dir / filename_md
 
     response = requests.get(html_url)
-
+    
+    # save_text_file(output_dir / 'response.html', response.text)
+    
     options = ConversionOptions(
         heading_style="atx",        # # H1 zamiast podkreślników
         strong_em_symbol="*",       # * zamiast _
@@ -38,7 +40,9 @@ def transform_html_to_markdown(output_dir: Path | str, html_url: str, preset: st
     )
 
     markdown = convert(response.text, options,  preprocessing=preprocessing)
-
+    
+    markdown = clean_markdown(markdown["content"])
+    
     markdown_file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(markdown_file_path, 'wb') as f:
         f.write(markdown.encode('utf-8'))
@@ -96,3 +100,42 @@ def download_files(
             print(f"X {f['name']}: {e}")
 
     return downloaded
+
+def clean_markdown(markdown: str) -> str:
+    """
+    Clean up markdown text produced by HTML-to-markdown conversion.
+
+    Removes noise introduced during conversion that has no value in the
+    final document, specifically:
+
+    - Inline data URI images (``data:image/...``) — these are typically
+      base64-encoded SVG icons, UI decorations, or navigation graphics
+      embedded directly in the HTML source. After conversion they appear
+      as ``![...](data:image/svg+xml;base64,...)`` blocks that pollute
+      the output without carrying any meaningful content.
+    - Consecutive blank lines left behind after the above elements are
+      stripped (more than two successive newlines are collapsed to two).
+
+    Args:
+        markdown: Raw markdown string returned by ``html_to_markdown.convert()``.
+
+    Returns:
+        Cleaned markdown string with data URI images removed and
+        excessive whitespace normalized.
+
+    Example:
+        >>> raw = "# Title\\n\\n![icon](data:image/svg+xml;base64,ABC=)\\n\\nSome text."
+        >>> clean_markdown(raw)
+        '# Title\\n\\nSome text.'
+    """
+    
+    if not isinstance(markdown, str):
+        raise TypeError(
+            f"clean_markdown expected str, got {type(markdown).__name__}. "
+            "If using html_to_markdown.convert(), extract result['content'] first."
+        )
+        
+    markdown = re.sub(r'!\[[^\]]*\]\(data:[^)]*\)', '', markdown)
+    markdown = re.sub(r'\n{3,}', '\n\n', markdown)
+    return markdown.strip()
+
