@@ -14,7 +14,7 @@ SOLUTION_URL       = os.environ["SOLUTION_URL"]
 PARENT_FOLDER_PATH = os.environ["PARENT_FOLDER_PATH"]
 DATA_FOLDER_PATH   = os.environ["DATA_FOLDER_PATH"]
 TASK_DATA_FOLDER_PATH = os.environ["TASK_DATA_FOLDER_PATH"]
-TOOLSEARCH_URL     = os.getenv('TOOLSEARCH_URL')
+OKO_URL     = os.getenv('OKO_URL')
 
 from libs.loggers import LoggerCallbackHandler, agent_logger
 
@@ -33,7 +33,7 @@ SUPERVISOR_CONFIG = {
 }
 
 supervisor_model = ChatOpenRouter(
-    model="openai/gpt-5-mini",
+    model="openai/gpt-4o",
     temperature=0,
 )
 

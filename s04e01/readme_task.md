@@ -30,6 +30,7 @@ pip install tiktoken
 pip install html-to-markdown
 pip install duckdb
 pip install langfuse
+pip install beautifulsoup4
 ```
 
 or
