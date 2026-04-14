@@ -1,0 +1,89 @@
+.
+├── libs
+│   ├── central_client.py
+│   ├── database.py
+│   ├── filetype_detect.py
+│   ├── generic_helpers.py
+│   ├── __init__.py
+│   ├── logger.py
+│   ├── loggers.py
+│   ├── __pycache__
+│   │   ├── database.cpython-313.pyc
+│   │   ├── generic_helpers.cpython-313.pyc
+│   │   ├── __init__.cpython-313.pyc
+│   │   ├── logger.cpython-313.pyc
+│   │   ├── loggers.cpython-313.pyc
+│   │   └── tomarkdown.cpython-313.pyc
+│   ├── tiktoken.py
+│   └── tomarkdown.py
+├── readme_api.md
+├── readme_task.md
+├── requirements-api.txt
+├── requirements-dev.txt
+├── requirements-task.txt
+├── resources
+│   ├── preparation.py
+│   └── __pycache__
+│       ├── preparation.cpython-312.pyc
+│       └── preparation.cpython-313.pyc
+├── scripts
+│   ├── start.py
+│   └── test.py
+├── src
+│   ├── __init__.py
+│   ├── main.py
+│   ├── modules
+│   │   ├── agent.py
+│   │   ├── chat_history.py
+│   │   ├── __init__.py
+│   │   ├── models.py
+│   │   ├── __pycache__
+│   │   ├── seeker_agent.py
+│   │   └── tools.py
+│   ├── prompts
+│   │   └── seeker_system.md
+│   └── __pycache__
+│       ├── __init__.cpython-312.pyc
+│       ├── __init__.cpython-313.pyc
+│       ├── main.cpython-312.pyc
+│       └── main.cpython-313.pyc
+├── start.ps1
+├── start.sh
+├── struktura_projektu.txt
+└── venv
+    ├── bin
+    │   ├── activate
+    │   ├── activate.csh
+    │   ├── activate.fish
+    │   ├── Activate.ps1
+    │   ├── distro
+    │   ├── dotenv
+    │   ├── f2py
+    │   ├── fastapi
+    │   ├── html-to-markdown
+    │   ├── httpx
+    │   ├── jsondiff
+    │   ├── jsonpatch
+    │   ├── jsonpointer
+    │   ├── normalizer
+    │   ├── numpy-config
+    │   ├── openai
+    │   ├── pip
+    │   ├── pip3
+    │   ├── pip3.13
+    │   ├── python -> /usr/bin/python
+    │   ├── python3 -> python
+    │   ├── python3.13 -> python
+    │   ├── tqdm
+    │   ├── uvicorn
+    │   ├── watchfiles
+    │   └── websockets
+    ├── include
+    │   ├── python3.13
+    │   └── site
+    ├── lib
+    │   └── python3.13
+    ├── lib64 -> lib
+    └── pyvenv.cfg
+
+18 directories, 68 files

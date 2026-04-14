@@ -21,16 +21,12 @@ python -m pip install --upgrade pip
 ### .vscode/settings.json
 
 VS Code zapisuje wybór w .vscode/settings.json na poziomie workspace.
-
 ​### Libs
 
 ```bash
+pip install -U langchain langchain-openai pydantic langgraph langchain-openrouter
 pip install python-dotenv
-pip install opencv-python pillow pytesseract
-pip install matplotlib
-pip install scipy
 pip install tiktoken
-pip install -U langchain-openrouter
 pip install html-to-markdown
 pip install duckdb
 pip install langfuse
