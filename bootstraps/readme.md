@@ -1,0 +1,1 @@
+python bootstrap_task.py s03e02   # OK ✓
