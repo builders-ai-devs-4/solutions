@@ -64,7 +64,6 @@ def save_file_from_url(url: str, folder: Path) -> Path | None:
     return save_file(url, folder)
 
 @tool
-# def get_file_list(folder: Path | str, filter: str = None) -> list[str]:
 def get_file_list(folder: str, filter: str = None) -> list[str]:
     """ Get a list of files in the specified folder, optionally filtered by a string .f.ex md. 
     No wildcards, just a simple substring match."""
